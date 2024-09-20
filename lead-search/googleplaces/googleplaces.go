@@ -168,3 +168,59 @@ func (s *Service) SearchPlaces(query string, location string, radius int) ([]str
 		return nil, fmt.Errorf("failed to get data: %v", resp.Status())
 	}
 }
+
+func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error) {
+	client := resty.New()
+
+	url := "https://maps.googleapis.com/maps/api/place/details/json"
+	resp, err := client.R().
+		SetQueryParams(map[string]string{
+			"place_id": placeID,
+			"key":      s.APIKey,
+		}).
+		Get(url)
+
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to Google Places Details API: %v", err)
+	}
+
+	if resp.IsSuccess() {
+		var result struct {
+			Result struct {
+				Name        string `json:"name"`
+				FormattedAddress string `json:"formatted_address"`
+				InternationalPhoneNumber string `json:"international_phone_number"`
+				Website     string `json:"website"`
+				Rating      float64 `json:"rating"`
+				Reviews     []struct {
+					AuthorName  string `json:"author_name"`
+					Rating      int    `json:"rating"`
+					Text        string `json:"text"`
+				} `json:"reviews"`
+			} `json:"result"`
+			Status       string `json:"status"`
+			ErrorMessage string `json:"error_message"`
+		}
+
+		err := json.Unmarshal(resp.Body(), &result)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing place details response: %v", err)
+		}
+
+		if result.Status != "OK" {
+			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
+		}
+
+		
+		return map[string]interface{}{
+			"Name":                      result.Result.Name,
+			"FormattedAddress":          result.Result.FormattedAddress,
+			"InternationalPhoneNumber":  result.Result.InternationalPhoneNumber,
+			"Website":                   result.Result.Website,
+			"Rating":                    result.Result.Rating,
+			"Reviews":                   result.Result.Reviews,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("failed to get place details: %v", resp.Status())
+}
