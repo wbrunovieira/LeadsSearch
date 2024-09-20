@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+   
 
 	"github.com/go-resty/resty/v2"
 )
@@ -15,9 +16,55 @@ type Service struct {
 
 
 
-
 func NewService(apiKey string) *Service {
     return &Service{APIKey: apiKey}
+}
+
+func (s *Service) GeocodeCity(city string) (string, error) {
+	client := resty.New()
+
+	geocodeURL := "https://maps.googleapis.com/maps/api/geocode/json"
+	resp, err := client.R().
+		SetQueryParams(map[string]string{
+			"address": city,
+			"key":     s.APIKey,
+		}).
+		Get(geocodeURL)
+
+	if err != nil {
+		return "", fmt.Errorf("Error connecting to Geocoding API: %v", err)
+	}
+
+	var result struct {
+		Results []struct {
+			Geometry struct {
+				Location struct {
+					Lat float64 `json:"lat"`
+					Lng float64 `json:"lng"`
+				} `json:"location"`
+			} `json:"geometry"`
+		} `json:"results"`
+		Status       string `json:"status"`
+		ErrorMessage string `json:"error_message"`
+	}
+
+	err = json.Unmarshal(resp.Body(), &result)
+	if err != nil {
+		return "", fmt.Errorf("Error parsing geocode response: %v", err)
+	}
+
+	if result.Status != "OK" {
+		return "", fmt.Errorf("Geocoding API error: %s, message: %s", result.Status, result.ErrorMessage)
+	}
+
+	
+	if len(result.Results) > 0 {
+		lat := result.Results[0].Geometry.Location.Lat
+		lng := result.Results[0].Geometry.Location.Lng
+		return fmt.Sprintf("%f,%f", lat, lng), nil
+	}
+
+	return "", fmt.Errorf("No results found for city: %s", city)
 }
 
 
