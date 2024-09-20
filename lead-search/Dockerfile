@@ -1,5 +1,6 @@
 
-FROM golang:1.20 AS builder
+FROM golang:1.23
+
 
 WORKDIR /app
 

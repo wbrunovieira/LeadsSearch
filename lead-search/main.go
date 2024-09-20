@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"lead-search/googleplaces"
+	"lead-search/cnpjsearch"
 	"log"
 	"os"
 
@@ -48,20 +49,22 @@ func main() {
 			log.Printf("Failed to get details for place ID %s: %v", placeID, err)
 			continue
 		}
+		name := details["Name"].(string)
         fmt.Printf("Details for Place ID %s:\n", placeID)
 		fmt.Printf("Name: %s\n", details["Name"])
 		fmt.Printf("Address: %s\n", details["FormattedAddress"])
 		fmt.Printf("Phone: %s\n", details["InternationalPhoneNumber"])
 		fmt.Printf("Website: %s\n", details["Website"])
 		fmt.Printf("Rating: %.1f\n", details["Rating"])
-		if reviews, ok := details["Reviews"].([]interface{}); ok {
-			fmt.Println("Reviews:")
-			for _, review := range reviews {
-				if r, ok := review.(map[string]interface{}); ok {
-					fmt.Printf("- %s (Rating: %d): %s\n", r["AuthorName"], int(r["Rating"].(float64)), r["Text"])
-				}
-			}
-		}
+
+		cnpjsearch.FetchData(name,city)
+
+		
+		cnpj := "31301298000101" 
+		
+		cnpjsearch.FetchCompanyDetails(cnpj)
+
+
 		fmt.Println()
 	}
 }
