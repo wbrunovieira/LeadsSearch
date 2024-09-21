@@ -1,11 +1,12 @@
-FROM golang:1.22
+FROM golang:1.23
 
 WORKDIR /app
 
 
-COPY . .
-RUN go mod tidy
 
+COPY go.mod go.sum ./
+RUN go mod tidy
+COPY . .
 RUN go build -o main .
 
 RUN apt-get update && apt-get install -y netcat-openbsd

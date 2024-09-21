@@ -1,8 +1,6 @@
 module api
 
-go 1.22
-
-toolchain go1.22.5
+go 1.23
 
 require (
 	github.com/wbrunovieira/ProtoDefinitionsLeadsSearch v0.0.0-20240921134043-478c17483bc1
