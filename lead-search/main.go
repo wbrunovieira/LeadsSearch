@@ -65,31 +65,91 @@ func sendLeadToAPI(details map[string]interface{}) {
     }
     defer conn.Close()
 
+
    
 
     client := leadpb.NewLeadServiceClient(conn)
 
+    businessName, ok := details["Name"].(string)
+    if !ok {
+        businessName = "" 
+    }
+
+    registeredName := businessName 
+
+    address, ok := details["FormattedAddress"].(string)
+    if !ok {
+        address = ""
+    }
+
+    zipcode, ok := details["ZIPCode"].(string)
+    if !ok {
+        zipcode = ""
+    }
+
+    phone, ok := details["InternationalPhoneNumber"].(string)
+    if !ok {
+        phone = ""
+    }
+
+    website, ok := details["Website"].(string)
+    if !ok {
+        website = ""
+    }
+
+    email, ok := details["Email"].(string)
+    if !ok {
+        email = ""
+    }
+
+    instagram, ok := details["Instagram"].(string)
+    if !ok {
+        instagram = ""
+    }
+
+    facebook, ok := details["Facebook"].(string)
+    if !ok {
+        facebook = ""
+    }
+
+    rating, ok := details["Rating"].(float64)
+    if !ok {
+        rating = 0.0
+    }
+
+    priceLevel, ok := details["PriceLevel"].(float64)
+    if !ok {
+        priceLevel = 0.0
+    }
+
+    userRatingsTotal, ok := details["UserRatingsTotal"].(int)
+    if !ok {
+        userRatingsTotal = 0
+    }
+
     req := &leadpb.LeadRequest{
-        BusinessName:         details["Name"].(string),
-        RegisteredName:       details["Name"].(string), 
-        Address:              details["FormattedAddress"].(string),
+        BusinessName:         businessName,
+        RegisteredName:       registeredName,
+        Address:              address,
         City:                 "Osasco", 
         State:                "SP",
         Country:              "Brazil",
-        ZipCode:              details["ZIPCode"].(string), 
+        ZipCode:              zipcode,
         Owner:                "", 
-        Phone:                details["InternationalPhoneNumber"].(string),
-        Whatsapp:             "", 
-        Website:              details["Website"].(string),
-        Email:                "", 
-        Instagram:            details["Instagram"].(string),
-        Facebook:             "", 
+        Phone:                phone,
+        Whatsapp:             "",
+        Website:              website,
+        Email:                email,
+        Instagram:            instagram,
+        Facebook:             facebook,
         Tiktok:               "", 
         CompanyRegistrationId: "", 
-        Rating:               float32(details["Rating"].(float64)),
-        PriceLevel:           float32(details["PriceLevel"].(float64)),
-        UserRatingsTotal:      int32(details["UserRatingsTotal"].(int)),
-        FoundationDate:       "",
+        Rating:               float32(rating), 
+        PriceLevel:           float32(priceLevel),
+        UserRatingsTotal:      int32(userRatingsTotal),
+        FoundationDate:       "", 
+        Source:               "Google Places", 
+
     }
 
 

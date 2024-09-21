@@ -39,56 +39,56 @@ func connectDB() {
 }
 
 
-func evaluateQuality() {
-	rows, err := db.Query("SELECT id, nome, endereco, telefone, site FROM leads WHERE qualidade IS NULL")
-	if err != nil {
-		log.Fatalf("Error fetching leads: %v", err)
-	}
-	defer rows.Close()
+// func evaluateQuality() {
+// 	rows, err := db.Query("SELECT id, nome, endereco, telefone, site FROM leads WHERE qualidade IS NULL")
+// 	if err != nil {
+// 		log.Fatalf("Error fetching leads: %v", err)
+// 	}
+// 	defer rows.Close()
 
-	for rows.Next() {
-		var lead Lead
-		err := rows.Scan(&lead.ID, &lead.Name, &lead.Address, &lead.Phone, &lead.Website)
-		if err != nil {
-			log.Fatalf("Error reading leads: %v", err)
-		}
-
-		
-		lead.FieldsFilled = 0
-		if lead.Name != "" {
-			lead.FieldsFilled++
-		}
-		if lead.Address != "" {
-			lead.FieldsFilled++
-		}
-		if lead.Phone != "" {
-			lead.FieldsFilled++
-		}
-		if lead.Website != "" {
-			lead.FieldsFilled++
-		}
+// 	for rows.Next() {
+// 		var lead Lead
+// 		err := rows.Scan(&lead.ID, &lead.Name, &lead.Address, &lead.Phone, &lead.Website)
+// 		if err != nil {
+// 			log.Fatalf("Error reading leads: %v", err)
+// 		}
 
 		
-		if lead.FieldsFilled == 4 {
-			lead.Quality = "good"
-		} else {
-			lead.Quality = "bad"
-		}
+// 		lead.FieldsFilled = 0
+// 		if lead.Name != "" {
+// 			lead.FieldsFilled++
+// 		}
+// 		if lead.Address != "" {
+// 			lead.FieldsFilled++
+// 		}
+// 		if lead.Phone != "" {
+// 			lead.FieldsFilled++
+// 		}
+// 		if lead.Website != "" {
+// 			lead.FieldsFilled++
+// 		}
 
 		
-		_, err = db.Exec("UPDATE leads SET qualidade = $1, campos_preenchidos = $2 WHERE id = $3",
-			lead.Quality, lead.FieldsFilled, lead.ID)
-		if err != nil {
-			log.Printf("Error updating lead %d: %v", lead.ID, err)
-		}
-	}
+// 		if lead.FieldsFilled == 4 {
+// 			lead.Quality = "good"
+// 		} else {
+// 			lead.Quality = "bad"
+// 		}
 
-	if err = rows.Err(); err != nil {
-		log.Fatalf("Error iterating over leads: %v", err)
-	}
+		
+// 		_, err = db.Exec("UPDATE leads SET qualidade = $1, campos_preenchidos = $2 WHERE id = $3",
+// 			lead.Quality, lead.FieldsFilled, lead.ID)
+// 		if err != nil {
+// 			log.Printf("Error updating lead %d: %v", lead.ID, err)
+// 		}
+// 	}
 
-	fmt.Println("Lead quality updated successfully.")
-}
+// 	if err = rows.Err(); err != nil {
+// 		log.Fatalf("Error iterating over leads: %v", err)
+// 	}
+
+// 	fmt.Println("Lead quality updated successfully.")
+// }
 
 func main() {
 	
@@ -96,7 +96,7 @@ func main() {
 	defer db.Close()
 
 	
-	evaluateQuality()
+	// evaluateQuality()
 
 	
 	port := os.Getenv("PORT")
