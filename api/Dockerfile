@@ -1,15 +1,18 @@
 FROM golang:1.23
 
-WORKDIR /app
 
-
+WORKDIR /usr/src/app
 
 COPY go.mod go.sum ./
-RUN go mod tidy
-COPY . .
-RUN go build -o main .
+RUN go mod download && go mod verify
 
-RUN apt-get update && apt-get install -y netcat-openbsd
+COPY . .
+RUN go build -v -o /usr/local/bin/app .
+
+
+RUN apt-get update && apt-get install -y \
+    netcat-openbsd
+
 
 COPY wait-for-it.sh /usr/local/bin/wait-for-it.sh
 RUN chmod +x /usr/local/bin/wait-for-it.sh

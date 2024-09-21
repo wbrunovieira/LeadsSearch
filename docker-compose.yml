@@ -7,9 +7,7 @@ services:
             - "8080:8080"
         environment:
             - PORT=8080
-        volumes:
-            - ./api:/app/src
-            - ./proto:/app/proto
+
         depends_on:
             - db
 
@@ -19,9 +17,7 @@ services:
             - "8081:8081"
         environment:
             - PORT=8081
-        volumes:
-            - ./data-procesor:/app/src
-            - ./proto:/app/proto
+
         depends_on:
             - db
 
@@ -31,9 +27,7 @@ services:
             - "8082:8082"
         environment:
             - PORT=8082
-        volumes:
-            - ./lead-search:/app/src
-            - ./proto:/app/proto
+
         depends_on:
             - db
 
