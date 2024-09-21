@@ -5,10 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"github.com/streadway/amqp"
 	"fmt"
 	"log"
 	"net/http"
+	"net"
 	"os"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/wbrunovieira/ProtoDefinitionsLeadsSearch/leadpb"
 
@@ -82,9 +86,116 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "Lead salvo com sucesso!")
+
+
+}
+
+func startGrpcServer() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("Failed to listen on port 8080: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	leadpb.RegisterLeadServiceServer(grpcServer, &LeadServer{})
+	reflection.Register(grpcServer)
+
+	log.Println("gRPC server is running on port 8080...")
+	if err := grpcServer.Serve(listener); err != nil {
+		log.Fatalf("Failed to serve gRPC server: %v", err)
+	}
+}
+
+// Função para consumir leads da fila RabbitMQ
+func consumeLeadsFromRabbitMQ() {
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+	}
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		"leads_queue", // Nome da fila
+		false,         // Não persistente
+		false,         // Não deletar quando ocioso
+		false,         // Não exclusivo
+		false,         // No-wait
+		nil,           // Argumentos adicionais
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+	msgs, err := ch.Consume(
+		q.Name, // Nome da fila
+		"",     // Nome do consumidor
+		true,   // Auto-ack (confirmação automática)
+		false,  // Exclusivo
+		false,  // No-local
+		false,  // No-wait
+		nil,    // Argumentos adicionais
+	)
+	if err != nil {
+		log.Fatalf("Failed to register a consumer: %v", err)
+	}
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			log.Printf("Received a message from RabbitMQ: %s", d.Body)
+
+			// Processar a mensagem recebida (JSON do lead)
+			var lead leadpb.LeadRequest
+			err := json.Unmarshal(d.Body, &lead)
+			if err != nil {
+				log.Printf("Failed to unmarshal lead data: %v", err)
+				continue
+			}
+
+			// Processar o lead (pode ser salvar no banco de dados)
+			log.Printf("Processing lead from RabbitMQ: %+v", lead)
+		}
+	}()
+
+	log.Printf(" [*] Waiting for messages from RabbitMQ. To exit press CTRL+C")
+	<-forever
+}
+
+func connectToRabbitMQ() (*amqp.Connection, error) {
+    var conn *amqp.Connection
+    var err error
+
+    for i := 0; i < 5; i++ {
+        conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+        if err == nil {
+            return conn, nil
+        }
+
+        log.Printf("Failed to connect to RabbitMQ, retrying in 5 seconds... (%d/5)", i+1)
+        time.Sleep(5 * time.Second)
+    }
+
+    return nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
 }
 
 func main() {
+
+	go startGrpcServer() 
+
+	conn, err := connectToRabbitMQ()
+	if err != nil {
+		log.Fatalf("Could not connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+
+	consumeLeadsFromRabbitMQ() 
 	
 	db.Connect()
 	defer db.Close()

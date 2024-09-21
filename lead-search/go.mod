@@ -18,6 +18,7 @@ require (
 
 require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
+	github.com/streadway/amqp v1.1.0
 	github.com/wbrunovieira/ProtoDefinitionsLeadsSearch v0.0.0-20240921200647-f17c29167049
 	golang.org/x/net v0.29.0 // indirect
 	google.golang.org/grpc v1.67.0

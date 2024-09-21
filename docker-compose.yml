@@ -10,6 +10,7 @@ services:
 
         depends_on:
             - db
+            - rabbitmq
 
     data-procesor:
         build: ./data-processor
@@ -20,6 +21,7 @@ services:
 
         depends_on:
             - db
+            - rabbitmq
 
     lead-search:
         build: ./lead-search
@@ -55,6 +57,17 @@ services:
         depends_on:
             - db
         command: ["python", "main.py"]
+
+    rabbitmq:
+        image: "rabbitmq:3-management"
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        healthcheck:
+            test: ["CMD", "rabbitmqctl", "status"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
 
 volumes:
     postgres_data:

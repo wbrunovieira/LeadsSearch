@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"lead-search/googleplaces"
+
+	"github.com/streadway/amqp"
 
 	"github.com/joho/godotenv"
 	"github.com/wbrunovieira/ProtoDefinitionsLeadsSearch/leadpb"
@@ -22,7 +25,14 @@ func main() {
         log.Fatal("Error loading .env file")
     }
 
+    conn, err := connectToRabbitMQ()
+	if err != nil {
+		log.Fatalf("Could not connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+
     apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
+
     if apiKey == "" {
         log.Fatal("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
     }
@@ -50,11 +60,36 @@ func main() {
         }
 
        
-        sendLeadToAPI(placeDetailsFromDetails)
+        err = sendLeadViaGrpc(placeDetailsFromDetails)
+
+        if err != nil {
+            log.Printf("gRPC failed, sending to RabbitMQ: %v", err)
+            err = sendLeadToRabbitMQ(placeDetailsFromDetails)
+            if err != nil {
+				log.Printf("Failed to send to RabbitMQ: %v", err)
+			}
+        }
     }
 }
 
-func sendLeadToAPI(details map[string]interface{}) {
+func connectToRabbitMQ() (*amqp.Connection, error) {
+	var conn *amqp.Connection
+	var err error
+
+	for i := 0; i < 5; i++ {
+		conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+		if err == nil {
+			return conn, nil
+		}
+
+		log.Printf("Failed to connect to RabbitMQ, retrying in 5 seconds... (%d/5)", i+1)
+		time.Sleep(5 * time.Second)
+	}
+
+	return nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
+}
+
+func sendLeadViaGrpc(details map[string]interface{})error  {
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
@@ -64,9 +99,6 @@ func sendLeadToAPI(details map[string]interface{}) {
         log.Fatalf("Failed to connect to API service: %v", err)
     }
     defer conn.Close()
-
-
-   
 
     client := leadpb.NewLeadServiceClient(conn)
 
@@ -160,4 +192,53 @@ func sendLeadToAPI(details map[string]interface{}) {
     }
 
     fmt.Printf("Response from API: %s\n", res.GetMessage())
+    return nil
+}
+
+
+func sendLeadToRabbitMQ(details map[string]interface{}) error {
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+	}
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		"leads_queue", // Nome da fila
+		false,         // Não persistente
+		false,         // Não deletar quando ocioso
+		false,         // Não exclusivo
+		false,         // No-wait
+		nil,           // Argumentos adicionais
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue: %v", err)
+	}
+
+    leadData, err := json.Marshal(details)
+	if err != nil {
+		return fmt.Errorf("Failed to serialize lead data: %v", err)
+	}
+
+	err = ch.Publish(
+		"",     // exchange
+		q.Name, // routing key
+		false,  // mandatório
+		false,  // imediato
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        []byte(leadData),
+		})
+	if err != nil {
+		log.Fatalf("Failed to publish a message to RabbitMQ: %v", err)
+	}
+
+	log.Printf("Lead sent to RabbitMQ for later processing: %s", leadData)
+    return nil
 }
