@@ -61,7 +61,7 @@ func (s *Service) GeocodeCity(city string) (string, error) {
 	return "", fmt.Errorf("no results found for city: %s", city)
 }
 
-func (s *Service) SearchPlaces(query string, location string, radius int) ([]string, error) {
+func (s *Service) SearchPlaces(query string, location string, radius int) ([]map[string]interface{}, error) {
 	client := resty.New()
 
 	url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
@@ -102,16 +102,6 @@ func (s *Service) SearchPlaces(query string, location string, radius int) ([]str
 						Lat float64 `json:"lat"`
 						Lng float64 `json:"lng"`
 					} `json:"location"`
-					Viewport struct {
-						Northeast struct {
-							Lat float64 `json:"lat"`
-							Lng float64 `json:"lng"`
-						} `json:"northeast"`
-						Southwest struct {
-							Lat float64 `json:"lat"`
-							Lng float64 `json:"lng"`
-						} `json:"southwest"`
-					} `json:"viewport"`
 				} `json:"geometry"`
 				Icon              string   `json:"icon"`
 				Vicinity          string   `json:"vicinity"`
@@ -135,39 +125,28 @@ func (s *Service) SearchPlaces(query string, location string, radius int) ([]str
 			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
 		}
 
-		fmt.Println("Places found:")
-		var placeIDs []string
+		places := []map[string]interface{}{}
 		for _, place := range result.Results {
-			fmt.Printf("Name: %s\nAddress: %s\nRating: %.1f\nPlace ID: %s\nUser Ratings Total: %d\nPrice Level: %d\nBusiness Status: %s\nIcon: %s\nVicinity: %s\n\n",
-				place.Name, place.Address, place.Rating, place.PlaceID, place.UserRatingsTotal, place.PriceLevel, place.BusinessStatus, place.Icon, place.Vicinity)
-			
-			
-			if len(place.Photos) > 0 {
-				for _, photo := range place.Photos {
-					fmt.Printf("Photo Reference: %s (Size: %dx%d)\n", photo.PhotoReference, photo.Width, photo.Height)
-				}
+			placeDetails := map[string]interface{}{
+				"Name":              place.Name,
+				"FormattedAddress":  place.Address,
+				"PlaceID":           place.PlaceID,
+				"Rating":            place.Rating,
+				"UserRatingsTotal":   place.UserRatingsTotal,
+				"PriceLevel":        place.PriceLevel,
+				"BusinessStatus":    place.BusinessStatus,
+				"Vicinity":          place.Vicinity,
+				"PermanentlyClosed": place.PermanentlyClosed,
+				"Types":             place.Types,
 			}
-
-			if len(place.Types) > 0 {
-				fmt.Printf("Types: %v\n", place.Types)
-			}
-
-			if place.PlusCode.CompoundCode != "" {
-				fmt.Printf("Plus Code: %s\n", place.PlusCode.CompoundCode)
-			}
-
-			if place.PermanentlyClosed {
-				fmt.Println("This place is permanently closed.")
-			}
-
-			placeIDs = append(placeIDs, place.PlaceID)
-			fmt.Println()
+			places = append(places, placeDetails)
 		}
-		return placeIDs, nil
+		return places, nil
 	} else {
 		return nil, fmt.Errorf("failed to get data: %v", resp.Status())
 	}
 }
+
 
 func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error) {
 	client := resty.New()
@@ -192,11 +171,7 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 				InternationalPhoneNumber string `json:"international_phone_number"`
 				Website     string `json:"website"`
 				Rating      float64 `json:"rating"`
-				Reviews     []struct {
-					AuthorName  string `json:"author_name"`
-					Rating      int    `json:"rating"`
-					Text        string `json:"text"`
-				} `json:"reviews"`
+				
 			} `json:"result"`
 			Status       string `json:"status"`
 			ErrorMessage string `json:"error_message"`
@@ -211,16 +186,17 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
 		}
 
-		
 		return map[string]interface{}{
 			"Name":                      result.Result.Name,
 			"FormattedAddress":          result.Result.FormattedAddress,
 			"InternationalPhoneNumber":  result.Result.InternationalPhoneNumber,
 			"Website":                   result.Result.Website,
 			"Rating":                    result.Result.Rating,
-			"Reviews":                   result.Result.Reviews,
+			
+			
 		}, nil
 	}
 
 	return nil, fmt.Errorf("failed to get place details: %v", resp.Status())
 }
+
