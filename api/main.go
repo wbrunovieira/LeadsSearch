@@ -19,7 +19,7 @@ type LeadServer struct {
 	leadpb.UnimplementedLeadServiceServer
 }
 
-func (s *LeadServer) SendLead(ctx context.Context, req *leadpb.LeadRequest) (*leadpb.LeadResponse, error) {
+func (s *LeadServer) ReceiveLead(ctx context.Context, req *leadpb.LeadRequest) (*leadpb.LeadResponse, error) {
 
 	lead := db.Lead{
 		BusinessName: req.GetBusinessName(),
@@ -53,7 +53,7 @@ func (s *LeadServer) SendLead(ctx context.Context, req *leadpb.LeadRequest) (*le
 		lead.FoundationDate = sql.NullTime{Time: parsedDate, Valid: true}
 	}
 
-	// Inserir no banco de dados
+	
 	err := db.CreateLead(&lead)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save lead: %v", err)

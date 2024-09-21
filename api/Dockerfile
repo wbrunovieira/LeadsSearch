@@ -19,4 +19,4 @@ RUN chmod +x /usr/local/bin/wait-for-it.sh
 
 EXPOSE 8080
 
-CMD ["wait-for-it.sh", "db", "5432", "--", "./main"]
+CMD ["wait-for-it.sh", "db", "5432", "--", "/usr/local/bin/app"]

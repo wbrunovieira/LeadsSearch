@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"lead-search/googleplaces"
-
 	"log"
 	"os"
+	"time"
+
+	"lead-search/googleplaces"
 
 	"github.com/joho/godotenv"
+	"github.com/wbrunovieira/ProtoDefinitionsLeadsSearch/leadpb"
+	"google.golang.org/grpc"
+
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -22,7 +28,6 @@ func main() {
     }
 
     service := googleplaces.NewService(apiKey)
-
     city := "Osasco"
     categoria := "restaurantes"
 
@@ -38,15 +43,6 @@ func main() {
 
     for _, place := range placeDetailsFromSearch {
         placeID := place["PlaceID"].(string)
-
-       
-        fmt.Printf("SearchPlaces result for Place ID %s:\n", placeID)
-        for k, v := range place {
-            fmt.Printf("%s: %v\n", k, v)
-        }
-        fmt.Println()
-
-        
         placeDetailsFromDetails, err := service.GetPlaceDetails(placeID)
         if err != nil {
             log.Printf("Failed to get details for place ID %s: %v", placeID, err)
@@ -54,27 +50,54 @@ func main() {
         }
 
        
-        fmt.Printf("GetPlaceDetails result for Place ID %s:\n", placeID)
-        for k, v := range placeDetailsFromDetails {
-            fmt.Printf("%s: %v\n", k, v)
-        }
-        fmt.Println()
-
-       
-        combinedDetails := make(map[string]interface{})
-        for k, v := range place {
-            combinedDetails[k] = v
-        }
-        for k, v := range placeDetailsFromDetails {
-            combinedDetails[k] = v
-        }
-
-       
-        fmt.Printf("Combined Details for Place ID %s:\n", placeID)
-        for k, v := range combinedDetails {
-            fmt.Printf("%s: %v\n", k, v)
-        }
-        fmt.Println()
+        sendLeadToAPI(placeDetailsFromDetails)
     }
 }
 
+func sendLeadToAPI(details map[string]interface{}) {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+     conn, err := grpc.DialContext(ctx, "api:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+    if err != nil {
+        log.Fatalf("Failed to connect to API service: %v", err)
+    }
+    defer conn.Close()
+
+   
+
+    client := leadpb.NewLeadServiceClient(conn)
+
+    req := &leadpb.LeadRequest{
+        BusinessName:         details["Name"].(string),
+        RegisteredName:       details["Name"].(string), 
+        Address:              details["FormattedAddress"].(string),
+        City:                 "Osasco", 
+        State:                "SP",
+        Country:              "Brazil",
+        ZipCode:              details["ZIPCode"].(string), 
+        Owner:                "", 
+        Phone:                details["InternationalPhoneNumber"].(string),
+        Whatsapp:             "", 
+        Website:              details["Website"].(string),
+        Email:                "", 
+        Instagram:            details["Instagram"].(string),
+        Facebook:             "", 
+        Tiktok:               "", 
+        CompanyRegistrationId: "", 
+        Rating:               float32(details["Rating"].(float64)),
+        PriceLevel:           float32(details["PriceLevel"].(float64)),
+        UserRatingsTotal:      int32(details["UserRatingsTotal"].(int)),
+        FoundationDate:       "",
+    }
+
+
+    res, err := client.ReceiveLead(ctx, req)
+    
+    if err != nil {
+        log.Fatalf("Error while sending lead: %v", err)
+    }
+
+    fmt.Printf("Response from API: %s\n", res.GetMessage())
+}
