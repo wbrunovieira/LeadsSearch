@@ -9,6 +9,7 @@ services:
             - PORT=8080
         volumes:
             - ./api:/app/src
+            - ./proto:/app/proto
         depends_on:
             - db
 
@@ -20,6 +21,7 @@ services:
             - PORT=8081
         volumes:
             - ./data-procesor:/app/src
+            - ./proto:/app/proto
         depends_on:
             - db
 
@@ -31,6 +33,7 @@ services:
             - PORT=8082
         volumes:
             - ./lead-search:/app/src
+            - ./proto:/app/proto
         depends_on:
             - db
 
@@ -54,6 +57,7 @@ services:
         build: ./ai_service
         volumes:
             - ./ai:/app/src
+            - ./proto:/app/proto
         depends_on:
             - db
         command: ["python", "main.py"]

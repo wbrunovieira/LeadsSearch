@@ -1,9 +1,9 @@
-FROM golang:1.19
+FROM golang:1.22
 
 WORKDIR /app
 
-COPY . .
 
+COPY . .
 RUN go mod tidy
 
 RUN go build -o main .

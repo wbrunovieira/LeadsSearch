@@ -1,14 +1,14 @@
 package db
 
 import (
-	"time"
+	"database/sql"
 )
 
 type Lead struct {
 	ID               uint    `gorm:"primaryKey"`
 	BusinessName             string  `gorm:"size:255"`
 	RegisteredName             string  `gorm:"size:255"`
-	FoundationDate             time.Time `gorm:"type:date"`
+	FoundationDate             sql.NullTime  `gorm:"type:date"`
 	Address          string  `gorm:"type:text"`
 	City          string  `gorm:"type:text"`
 	State          string  `gorm:"type:text"`
