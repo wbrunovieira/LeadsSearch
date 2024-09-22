@@ -20,10 +20,12 @@ import (
 )
 
 func main() {
+    log.Println("Starting the service...")
     err := godotenv.Load()
     if err != nil {
         log.Fatal("Error loading .env file")
     }
+    log.Println(".env file loaded successfully")
 
     conn, err := connectToRabbitMQ()
 	if err != nil {
@@ -85,11 +87,13 @@ func main() {
 }
 
 func connectToRabbitMQ() (*amqp.Connection, error) {
+    log.Println("Conectando ao RabbitMQ...")
     rabbitmqHost := os.Getenv("RABBITMQ_HOST")
     rabbitmqPort := os.Getenv("RABBITMQ_PORT")
     if rabbitmqHost == "" || rabbitmqPort == "" {
         return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
     }
+    log.Printf("Conectado ao RabbitMQ em %s:%s", rabbitmqHost, rabbitmqPort)
 
 	var conn *amqp.Connection
     var err error
@@ -108,6 +112,8 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
 }
 
 func sendLeadViaGrpc(details map[string]interface{})error  {
+    log.Println("Enviando lead via gRPC...")
+
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
@@ -119,6 +125,7 @@ func sendLeadViaGrpc(details map[string]interface{})error  {
     defer conn.Close()
 
     client := leadpb.NewLeadServiceClient(conn)
+    log.Println("Cliente gRPC criado com sucesso.")
 
     businessName, ok := details["Name"].(string)
     if !ok {
@@ -126,6 +133,7 @@ func sendLeadViaGrpc(details map[string]interface{})error  {
     }
 
     registeredName := businessName 
+    log.Printf("Enviando lead: %v", details)
 
     address, ok := details["FormattedAddress"].(string)
     if !ok {
@@ -210,11 +218,14 @@ func sendLeadViaGrpc(details map[string]interface{})error  {
     }
 
     fmt.Printf("Response from API: %s\n", res.GetMessage())
+    log.Printf("Resposta da API gRPC: %s", res.GetMessage())
+
     return nil
 }
 
 
 func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error {
+    log.Println("Iniciando envio de lead via gRPC...")
     q, err := ch.QueueDeclare(
         "leads_queue", 
         false,         
@@ -242,6 +253,8 @@ func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error 
             Body:        leadData,
         })
     if err != nil {
+        log.Println("Tentando enviar lead via RabbitMQ devido à falha no gRPC...")
+
         return fmt.Errorf("Failed to publish a message to RabbitMQ: %v", err)
     }
 

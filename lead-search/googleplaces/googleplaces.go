@@ -3,6 +3,7 @@ package googleplaces
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -16,6 +17,8 @@ func NewService(apiKey string) *Service {
 }
 
 func (s *Service) GeocodeCity(city string) (string, error) {
+	log.Printf("Buscando coordenadas para a cidade: %s", city)
+
 	client := resty.New()
 
 	geocodeURL := "https://maps.googleapis.com/maps/api/geocode/json"
@@ -62,6 +65,7 @@ func (s *Service) GeocodeCity(city string) (string, error) {
 }
 
 func (s *Service) SearchPlaces(query string, location string, radius int) ([]map[string]interface{}, error) {
+
 	client := resty.New()
 
 	url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
@@ -73,6 +77,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int) ([]map
 			"key":      s.APIKey,
 		}).
 		Get(url)
+		
 
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to Google Places API: %v", err)

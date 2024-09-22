@@ -25,7 +25,9 @@ type LeadServer struct {
 	channel *amqp.Channel
 }
 
-func (s *LeadServer) ReceiveLead(ctx context.Context, req *leadpb.LeadRequest) (*leadpb.LeadResponse, error) {
+func (s *LeadServer) SendLead(ctx context.Context, req *leadpb.LeadRequest) (*leadpb.LeadResponse, error) {
+
+	log.Printf("Recebendo lead: %v", req)
 
 	lead := db.Lead{
 		BusinessName: req.GetBusinessName(),
@@ -51,22 +53,26 @@ func (s *LeadServer) ReceiveLead(ctx context.Context, req *leadpb.LeadRequest) (
 
 	if req.GetFoundationDate() == "" {
 		lead.FoundationDate = sql.NullTime{Valid: false}
+		log.Println("Data de fundação não fornecida.")
 	} else {
 		parsedDate, err := time.Parse("2006-01-02", req.GetFoundationDate())
 		if err != nil {
 			return nil, fmt.Errorf("data inválida: %v", err)
 		}
 		lead.FoundationDate = sql.NullTime{Time: parsedDate, Valid: true}
+		log.Printf("Data de fundação parseada: %v", parsedDate)
 	}
 
 	
 	err := db.CreateLead(&lead)
 	if err != nil {
+		log.Printf("Erro ao salvar o lead no banco de dados: %v", err)
 		return nil, fmt.Errorf("failed to save lead: %v", err)
 	}
 
 	leadData, err := json.Marshal(req)
     if err != nil {
+		log.Printf("Erro ao converter o lead para JSON: %v", err)
         return nil, fmt.Errorf("failed to marshal lead: %v", err)
     }
 
@@ -81,6 +87,7 @@ func (s *LeadServer) ReceiveLead(ctx context.Context, req *leadpb.LeadRequest) (
         },
     )
     if err != nil {
+		log.Printf("Erro ao publicar o lead no RabbitMQ: %v", err)
         return nil, fmt.Errorf("failed to publish lead to RabbitMQ: %v", err)
     }
 
@@ -112,17 +119,25 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func startGrpcServer(channel *amqp.Channel) {
-	listener, err := net.Listen("tcp", ":8090")
-	if err != nil {
-		log.Fatalf("Failed to listen on port 8090: %v", err)
-	}
+	log.Println("chamou a startGrpcServer")
 
 	grpcServer := grpc.NewServer()
+	log.Println("Iniciando servidor gRPC na porta 8090...")
 	leadServer := &LeadServer{channel: channel}
+	log.Println("Registrando o serviço LeadService no servidor gRPC...")
 	leadpb.RegisterLeadServiceServer(grpcServer, leadServer)
+	log.Println("Serviço LeadService registrado com sucesso.")
 	reflection.Register(grpcServer)
 
+	listener, err := net.Listen("tcp", ":8090")
+	
+	if err != nil {
+		log.Fatalf("Falha ao iniciar o listener: %v", err)
+	}
+
+
 	log.Println("gRPC server is running on port 8090...")
+
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve gRPC server: %v", err)
 	}
@@ -205,23 +220,36 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
 
 func main() {
 
-	
+	log.Println("comecou")
+
 	conn, err := connectToRabbitMQ()
 	if err != nil {
 		log.Fatalf("Could not connect to RabbitMQ: %v", err)
 	}
-	defer conn.Close()
+	log.Printf("Successfully connected to RabbitMQ at %s", conn.LocalAddr())
+	defer func() {
+		log.Println("Closing RabbitMQ connection...")
+		conn.Close()
+	}()
 
 	channel, err := conn.Channel()
+
 	if err != nil {
 		log.Fatalf("Failed to open a RabbitMQ channel: %v", err)
 	}
-	defer channel.Close()
+	log.Println("Successfully opened a RabbitMQ channel")
+defer func() {
+    log.Println("Closing RabbitMQ channel...")
+    channel.Close()
+}()
 
+log.Println("Starting gRPC server... esse aqui")
 	go startGrpcServer(channel)
 
+	log.Println("Starting to consume leads from RabbitMQ...")
 	go consumeLeadsFromRabbitMQ(channel)
 	
+	log.Println("Connecting to the database...")
 	db.Connect()
 	defer db.Close()
 
