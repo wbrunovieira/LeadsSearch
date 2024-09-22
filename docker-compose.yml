@@ -4,13 +4,23 @@ services:
     api:
         build: ./api
         ports:
-            - "8080:8080"
+            - "8085:8085"
         environment:
-            - PORT=8080
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+            - PORT=8085 
 
         depends_on:
-            - db
-            - rabbitmq
+            rabbitmq:
+                condition: service_healthy
+
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - leads-network
 
     data-procesor:
         build: ./data-processor
@@ -21,17 +31,27 @@ services:
 
         depends_on:
             - db
-            - rabbitmq
+        networks:
+            - leads-network
 
     lead-search:
         build: ./lead-search
         ports:
             - "8082:8082"
         environment:
-            - PORT=8082
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
 
         depends_on:
-            - db
+            rabbitmq:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - leads-network
 
     db:
         image: postgres:13
@@ -48,6 +68,8 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+        networks:
+            - leads-network
 
     ai:
         build: ./ai_service
@@ -57,6 +79,8 @@ services:
         depends_on:
             - db
         command: ["python", "main.py"]
+        networks:
+            - leads-network
 
     rabbitmq:
         image: "rabbitmq:3-management"
@@ -68,6 +92,12 @@ services:
             interval: 30s
             timeout: 10s
             retries: 5
+        networks:
+            - leads-network
+
+networks:
+    leads-network:
+        driver: bridge
 
 volumes:
     postgres_data:

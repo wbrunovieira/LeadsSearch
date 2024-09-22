@@ -31,6 +31,12 @@ func main() {
 	}
 	defer conn.Close()
 
+    ch, err := conn.Channel()
+    if err != nil {
+        log.Fatalf("Failed to open a channel: %v", err)
+    }
+    defer ch.Close()
+
     apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 
     if apiKey == "" {
@@ -64,36 +70,48 @@ func main() {
 
         if err != nil {
             log.Printf("gRPC failed, sending to RabbitMQ: %v", err)
-            err = sendLeadToRabbitMQ(placeDetailsFromDetails)
+            err = sendLeadToRabbitMQ(ch,placeDetailsFromDetails)
             if err != nil {
 				log.Printf("Failed to send to RabbitMQ: %v", err)
 			}
         }
     }
+
+   
+
+
+
+   
 }
 
 func connectToRabbitMQ() (*amqp.Connection, error) {
+    rabbitmqHost := os.Getenv("RABBITMQ_HOST")
+    rabbitmqPort := os.Getenv("RABBITMQ_PORT")
+    if rabbitmqHost == "" || rabbitmqPort == "" {
+        return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
+    }
+
 	var conn *amqp.Connection
-	var err error
+    var err error
 
 	for i := 0; i < 5; i++ {
-		conn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-		if err == nil {
-			return conn, nil
-		}
+        conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
+        if err == nil {
+            return conn, nil
+        }
 
-		log.Printf("Failed to connect to RabbitMQ, retrying in 5 seconds... (%d/5)", i+1)
-		time.Sleep(5 * time.Second)
-	}
+        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
+        time.Sleep(10 * time.Second)
+    }
 
-	return nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
+    return nil, fmt.Errorf("failed to connect to RabbitMQ at %s:%s after 5 retries: %v", rabbitmqHost, rabbitmqPort, err)
 }
 
 func sendLeadViaGrpc(details map[string]interface{})error  {
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
-     conn, err := grpc.DialContext(ctx, "api:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+     conn, err := grpc.DialContext(ctx, "api:8090", grpc.WithTransportCredentials(insecure.NewCredentials()))
 
     if err != nil {
         log.Fatalf("Failed to connect to API service: %v", err)
@@ -196,49 +214,37 @@ func sendLeadViaGrpc(details map[string]interface{})error  {
 }
 
 
-func sendLeadToRabbitMQ(details map[string]interface{}) error {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
-	}
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare(
-		"leads_queue", // Nome da fila
-		false,         // Não persistente
-		false,         // Não deletar quando ocioso
-		false,         // Não exclusivo
-		false,         // No-wait
-		nil,           // Argumentos adicionais
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
-	}
+func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error {
+    q, err := ch.QueueDeclare(
+        "leads_queue", 
+        false,         
+        false,         
+        false,         
+        false,         
+        nil,           
+    )
+    if err != nil {
+        return fmt.Errorf("Failed to declare a queue: %v", err)
+    }
 
     leadData, err := json.Marshal(details)
-	if err != nil {
-		return fmt.Errorf("Failed to serialize lead data: %v", err)
-	}
+    if err != nil {
+        return fmt.Errorf("Failed to serialize lead data: %v", err)
+    }
 
-	err = ch.Publish(
-		"",     // exchange
-		q.Name, // routing key
-		false,  // mandatório
-		false,  // imediato
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        []byte(leadData),
-		})
-	if err != nil {
-		log.Fatalf("Failed to publish a message to RabbitMQ: %v", err)
-	}
+    err = ch.Publish(
+        "",     
+        q.Name, 
+        false,  
+        false,  
+        amqp.Publishing{
+            ContentType: "application/json",
+            Body:        leadData,
+        })
+    if err != nil {
+        return fmt.Errorf("Failed to publish a message to RabbitMQ: %v", err)
+    }
 
-	log.Printf("Lead sent to RabbitMQ for later processing: %s", leadData)
+    log.Printf("Lead sent to RabbitMQ for later processing: %s", leadData)
     return nil
 }
