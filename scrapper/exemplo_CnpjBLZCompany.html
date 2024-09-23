@@ -1,0 +1,3500 @@
+<body style="height: 110vh">
+    <nav
+        class=""
+        style="max-width: 80rem; margin-left: auto; margin-right: auto"
+        tabindex="-1"
+    >
+        <div
+            style="
+                display: flex;
+                position: relative;
+                padding-top: 10px;
+                padding-left: 15px;
+                align-items: center;
+            "
+        >
+            <a href="/" style="width: 185px">
+                <span class="sr-only">CNPJ Biz Logo</span>
+                <img
+                    src="https://cdn.cnpj.biz/img/logo-cnpjbiz-vertical.png"
+                    srcset="
+                        https://cdn.cnpj.biz/img/logo-cnpjbiz-vertical.png        55w,
+                        https://cdn.cnpj.biz/img/logo-cnpjbiz-vertical-large.png 110w
+                    "
+                    width="185"
+                    height="44"
+                    sizes="185px"
+                    alt="Logo Cnpj Biz"
+                />
+            </a>
+            <div class="menu-desktop" style="padding-left: 15px">
+                <a href="https://cnpj.biz/empresas" style="padding-right: 15px"
+                    >Pesquisa de Empresas</a
+                >
+                <a href="/blog/" style="padding-right: 15px">Blog</a>
+                <a
+                    href="https://cnpj.biz/lista-de-empresas-segmento"
+                    style="padding-right: 15px"
+                    >Lista de Empresas</a
+                >
+                <a
+                    href="https://cnpj.biz/crm-de-vendas"
+                    style="padding-right: 15px"
+                    >CRM de Vendas</a
+                >
+                <a href="https://cnpj.biz/planos">Planos</a>
+            </div>
+            <div class="menu-mobile-transition">
+                <div style="position: absolute; top: 10px; right: 10px">
+                    <button
+                        onclick="toggleMenuMobile()"
+                        style="border: none; cursor: pointer"
+                        aria-label="Menu"
+                    >
+                        <svg
+                            id="svg-aberto"
+                            style="
+                                display: block;
+                                width: 25px;
+                                height: 25px;
+                                color: lightslategray;
+                            "
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            aria-hidden="true"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16"
+                            ></path>
+                        </svg>
+                        <svg
+                            id="svg-fechado"
+                            style="
+                                display: none;
+                                width: 25px;
+                                height: 25px;
+                                color: lightslategray;
+                            "
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            aria-hidden="true"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                            ></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="mobile-menu" class="menu-mobile">
+                    <div>
+                        <a
+                            href="https://cnpj.biz/empresas"
+                            style="display: block; padding: 10px"
+                            >Pesquisa de Empresas</a
+                        >
+                        <a href="/blog/" style="display: block; padding: 10px"
+                            >Blog</a
+                        >
+                        <a
+                            href="https://cnpj.biz/lista-de-empresas-segmento"
+                            style="display: block; padding: 10px"
+                            >Lista de Empresas</a
+                        >
+                        <a
+                            href="https://cnpj.biz/crm-de-vendas"
+                            style="display: block; padding: 10px"
+                            >CRM de Vendas</a
+                        >
+                        <a
+                            href="https://cnpj.biz/planos"
+                            style="display: block; padding: 10px"
+                            >Planos</a
+                        >
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
+        <symbol
+            id="external-link"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+        >
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            ></path>
+        </symbol>
+        <symbol id="maps" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"
+            ></path>
+        </symbol>
+    </svg>
+    <nav class="breadcrumb">
+        <div class="container">
+            <a href="/">Principal</a> &gt;&gt;
+            <a href="/empresas">Empresas</a> &gt;&gt;
+            <a href="/empresas/estado/SP"
+                >SP <span class="sr-only">São Paulo</span>
+            </a>
+            &gt;&gt; <a href="/empresas/osasco-sp">Osasco</a> &gt;&gt; Luar
+            Restaurante e Lanchonete LTDA
+        </div>
+    </nav>
+    <div class="container">
+        <div class="hero">
+            <div class="row" style="overflow: revert !important">
+                <h1 class="post-title empresa-title" style="">
+                    Luar - Restaurante &amp; Lanchonete Luar Restaurante e
+                    Lanchonete LTDA 25.065.443/0001-91
+                </h1>
+                <ins
+                    class="adsbygoogle labeladsbygoogle ad_slot_1"
+                    style="display: block; width: 528px; height: 347px"
+                    data-ad-client="ca-pub-8953612832270972"
+                    data-ad-slot="6609497307"
+                    data-full-width-responsive="true"
+                    data-adsbygoogle-status="done"
+                    data-ad-status="filled"
+                >
+                    <div class="reserve-banner">
+                        <a
+                            href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                            style="text-align: center"
+                        >
+                            <picture>
+                                <source
+                                    srcset="
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280.webp,
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280-1-5x.webp 1.5x,
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280-2x.webp   2x
+                                    "
+                                    width="336"
+                                    height="280"
+                                    media="(max-width: 640px)"
+                                />
+                                <source
+                                    srcset="
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300.webp,
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300-1-5x.webp 1.5x,
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300-2x.webp   2x
+                                    "
+                                    width="750"
+                                    height="300"
+                                    media="(max-width: 990px)"
+                                />
+                                <img
+                                    class="size-full cursor-pointer shadow-lg mx-auto"
+                                    alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                    title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                    src="https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250.webp"
+                                    srcset="
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                        https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250-2x.webp   2x
+                                    "
+                                    width="970"
+                                    height="250"
+                                    loading="lazy"
+                                />
+                            </picture>
+                        </a>
+                    </div>
+                    <div
+                        id="aswift_1_host"
+                        style="
+                            border: none;
+                            height: 347px;
+                            width: 528px;
+                            margin: 0px;
+                            padding: 0px;
+                            position: relative;
+                            visibility: visible;
+                            background-color: transparent;
+                            display: inline-block;
+                        "
+                    >
+                        <iframe
+                            id="aswift_1"
+                            name="aswift_1"
+                            browsingtopics="true"
+                            style="
+                                left: 0;
+                                position: absolute;
+                                top: 0;
+                                border: 0;
+                                width: 528px;
+                                height: 347px;
+                            "
+                            sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+                            width="528"
+                            height="347"
+                            frameborder="0"
+                            marginwidth="0"
+                            marginheight="0"
+                            vspace="0"
+                            hspace="0"
+                            allowtransparency="true"
+                            scrolling="no"
+                            allow="attribution-reporting; run-ad-auction"
+                            src="https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-8953612832270972&amp;output=html&amp;h=347&amp;slotname=6609497307&amp;adk=498283116&amp;adf=2369281301&amp;pi=t.ma~as.6609497307&amp;w=528&amp;abgtt=6&amp;fwrn=4&amp;fwrnh=100&amp;lmt=1727102497&amp;rafmt=12&amp;format=528x347&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;fwr=0&amp;fwrattr=true&amp;rh=347&amp;rw=528&amp;sfro=1&amp;wgl=1&amp;uach=WyJtYWNPUyIsIjEwLjE1LjciLCJ4ODYiLCIiLCIxMjguMC42NjEzLjEzOCIsbnVsbCwwLG51bGwsIjY0IixbWyJDaHJvbWl1bSIsIjEyOC4wLjY2MTMuMTM4Il0sWyJOb3Q7QT1CcmFuZCIsIjI0LjAuMC4wIl0sWyJHb29nbGUgQ2hyb21lIiwiMTI4LjAuNjYxMy4xMzgiXV0sMF0.&amp;dt=1727103482401&amp;bpp=154&amp;bdt=864&amp;idt=888&amp;shv=r20240918&amp;mjsv=m202409170101&amp;ptt=9&amp;saldr=aa&amp;abxe=1&amp;cookie=ID%3D6eed34d1325360d4%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MZp_ryYa5lmORPAL8wvLbo2O17ZMw&amp;gpic=UID%3D00000a51b241ebc3%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MamN8zbdyibTGN1t3-HGPWzEQla-Q&amp;eo_id_str=ID%3Da2e12567c301f1da%3AT%3D1726847352%3ART%3D1727103377%3AS%3DAA-AfjbSl424rYKREmzTyvtuEPVn&amp;prev_fmts=0x0&amp;nras=1&amp;correlator=2906135849960&amp;frm=20&amp;pv=1&amp;u_tz=-180&amp;u_his=1&amp;u_h=768&amp;u_w=1366&amp;u_ah=679&amp;u_aw=1366&amp;u_cd=24&amp;u_sd=1&amp;dmc=8&amp;adx=54&amp;ady=299&amp;biw=1337&amp;bih=536&amp;scr_x=0&amp;scr_y=0&amp;eid=44759876%2C44759927%2C44759842%2C31087217%2C95342766%2C31087281%2C95337196%2C95339678%2C95342338&amp;oid=2&amp;pvsid=1707577583856083&amp;tmod=184205462&amp;uas=0&amp;nvt=1&amp;ref=https%3A%2F%2Fcnpj.biz%2Fprocura%2FLuar%2520Restaurante%2520Osasco&amp;fc=1920&amp;brdim=0%2C23%2C0%2C23%2C1366%2C23%2C1352%2C657%2C1352%2C536&amp;vis=1&amp;rsz=%7Cd%7CeE%7Cp&amp;abl=XS&amp;pfx=0&amp;fu=128&amp;bc=31&amp;bz=1&amp;td=1&amp;tdf=2&amp;psd=W251bGwsbnVsbCxudWxsLDNd&amp;nt=1&amp;ifi=2&amp;uci=a!2&amp;fsb=1&amp;dtd=1070"
+                            data-google-container-id="a!2"
+                            tabindex="0"
+                            title="Advertisement"
+                            aria-label="Advertisement"
+                            data-google-query-id="CNvvku2p2YgDFctc3QIdMZkzWg"
+                            data-load-complete="true"
+                        ></iframe></div
+                ></ins>
+                <script>
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                </script>
+                <div
+                    class="main"
+                    style="
+                        display: flex;
+                        width: 100%;
+                        height: 100%;
+                        position: relative;
+                    "
+                >
+                    <div class="column-1 box">
+                        <h2 style="margin-top: 10px">
+                            Informações de Registro
+                        </h2>
+                        <p style="justify-content: left">
+                            CNPJ:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">25.065.443/0001-91</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                            -
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">25065443000191</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Inscrição Estadual SP:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">492.863.004.113</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Razão Social:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy"
+                                    >Luar Restaurante e Lanchonete LTDA</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Nome Fantasia:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy"
+                                    >Luar - Restaurante &amp; Lanchonete</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Data da Abertura:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">23/06/2016</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy" id="TD">8 anos e 3 meses </b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>Porte: <b>Micro Empresa</b></p>
+                        <p>
+                            Natureza Jurídica:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy"
+                                    >Sociedade Empresária Limitada</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>Opção pelo MEI: <b>Não</b></p>
+                        <p>Opção pelo Simples: <b>Sim</b></p>
+                        <p>Data opção Simples: <b>01/01/2020</b></p>
+                        <p>
+                            Capital Social:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">R$ 10.000,00</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Tipo:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">Matriz</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Situação:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">Ativa</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Data Situação Cadastral:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">23/06/2016</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <div style="margin-top: 20px"></div>
+                        <ins
+                            class="adsbygoogle labeladsbygoogle ad_slot_1 llads"
+                            style="display: block"
+                            data-ad-client="ca-pub-8953612832270972"
+                            data-ad-slot="7896761848"
+                            data-ad-format="rectangle, horizontal"
+                            data-full-width-responsive="true"
+                            data-ad-status="filled"
+                        >
+                            <div class="reserve-banner">
+                                <a
+                                    href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                                    style="text-align: center"
+                                >
+                                    <picture>
+                                        <source
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp,
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp 2x
+                                            "
+                                            width="336"
+                                            height="280"
+                                            media="(max-width: 640px)"
+                                        />
+                                        <source
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300.webp,
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300-1-5x.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300-2x.webp   2x
+                                            "
+                                            width="750"
+                                            height="300"
+                                            media="(max-width: 990px)"
+                                        />
+                                        <img
+                                            class="size-full cursor-pointer shadow-lg mx-auto"
+                                            alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                            title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                            src="https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250.webp"
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250-2x.webp   2x
+                                            "
+                                            loading="lazy"
+                                            width="970"
+                                            height="250"
+                                        />
+                                    </picture>
+                                </a>
+                            </div>
+                        </ins>
+                        <div style="margin-bottom: 30px"></div>
+                        <h2 id="contato">Contatos</h2>
+                        <p>
+                            E-mail:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">dbellini.aregini@gmail.com</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                            <a href="mailto:dbellini.aregini@gmail.com"
+                                >(Enviar E-mail)</a
+                            >
+                        </p>
+                        <p>
+                            Telefone(s): <br />
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">(11) 3691-3607</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                            <a href="tel:1136913607"> (Ligar)</a> <br />
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">(11) 3681-3885</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                            <a href="tel:1136813885"> (Ligar)</a> <br />
+                        </p>
+                        <h2>Localização</h2>
+                        <p>
+                            Logradouro:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">Rua Dom Ercilio Turco, 60</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Complemento:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">Casa 01</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Bairro:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">Vila Osasco</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            CEP:
+                            <span class="tooltip" style="display: inline"
+                                ><b class="copy">06080-000</b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <p>
+                            Município:
+                            <b
+                                ><a href="https://cnpj.biz/empresas/osasco-sp"
+                                    >Osasco</a
+                                ></b
+                            >
+                        </p>
+                        <p>
+                            Estado:
+                            <b
+                                ><a href="https://cnpj.biz/empresas/estado/SP"
+                                    >São Paulo</a
+                                ></b
+                            >
+                        </p>
+                        <p>
+                            Para correspondência: <br /><span
+                                class="tooltip"
+                                style="display: inline"
+                                ><b class="copy"
+                                    >Luar - Restaurante &amp; Lanchonete Luar
+                                    Restaurante e Lanchonete LTDA<br />
+                                    Rua Dom Ercilio Turco 60 Casa 01<br />
+                                    Vila Osasco<br />
+                                    Osasco SP <br />06080-000<br /></b
+                                ><span
+                                    class="tooltiptext"
+                                    id="myTooltip"
+                                    style="z-index: 9999"
+                                >
+                                    Clique para copiar
+                                </span></span
+                            >
+                        </p>
+                        <a
+                            target="_blank"
+                            rel="nofollow noopener noreferrer"
+                            class="btn btn-b btn-sm"
+                            href="https://www.google.com.br/maps/search/Rua Dom Ercilio Turco 60 Vila Osasco Osasco SP"
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 5px;
+                                "
+                            >
+                                <div>Procurar no Google Maps</div>
+                                <div>
+                                    <svg
+                                        class=""
+                                        style="width: 20px; height: 20px"
+                                    >
+                                        <use xlink:href="#maps"></use>
+                                    </svg>
+                                </div>
+                            </div>
+                        </a>
+                        <h2>Atividades - CNAES</h2>
+                        <div class="row">
+                            <div class="col c12">
+                                Principal:
+                                <span
+                                    style="cursor: pointer"
+                                    onclick="hideshowdiv('56.11-2-01')"
+                                >
+                                    <b
+                                        ><u
+                                            >56.11-2-01 - Restaurantes e
+                                            similares</u
+                                        ></b
+                                    >
+                                    <i class="ico-xs" id="56.11-2-01ico">⇩</i>
+                                </span>
+                                <a
+                                    href="/cnae-atividade/5611-2-01-restaurantes-e-similares"
+                                    target="_blank"
+                                    style="
+                                        margin-left: 4px;
+                                        vertical-align: bottom;
+                                    "
+                                    title="Clique aqui para buscar empresas com este CNAE / Atividade"
+                                >
+                                    <svg
+                                        class=""
+                                        style="width: 20px; height: 20px"
+                                    >
+                                        <use xlink:href="#external-link"></use>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="panel-a" id="56.11-2-01">
+                            <div class="row">
+                                <div class="col c12">
+                                    Esta atividade compreende:
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col c12">
+                                    <i
+                                        >- as atividades de vender e servir
+                                        comida preparada, com ou sem bebidas
+                                        alcoólicas ao público em geral, com
+                                        serviço completo<br />
+                                        - os restaurantes self-service ou de
+                                        comida a quilo<br />
+                                        - as atividades de restaurante e bares
+                                        em embarcações explorados por
+                                        terceiros</i
+                                    >
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col c12">
+                                    Descritores da atividade:
+                                </div>
+                            </div>
+                            <div class="row">
+                                <i>
+                                    Restaurante com serviço completo, Serviço de
+                                    restaurantes e bares em embarcações
+                                    explorados por terceiros, Restaurantes e
+                                    similares, Serviços de alimentação com
+                                    serviço completo, Alimentação, comida,
+                                    refeição a peso, Serviço de alimentação
+                                    rotisseria, Serviço de alimentação
+                                    churrascaria, Serviço de alimentação
+                                    trattoria, Serviço de alimentação
+                                    self-service, Serviço de alimentação a
+                                    quilo, Serviço de alimentação exploração de
+                                    vagões-restaurantes, por terceiros, Serviço
+                                    de restaurante por comida a quilo,
+                                    Alimentação, comida, refeição a kilo,
+                                    Serviço de alimentação pensão, Serviço de
+                                    alimentação pizzaria com serviço completo,
+                                </i>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">Secundária(s):</div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">
+                                <span
+                                    style="cursor: pointer"
+                                    onclick="hideshowdiv('56.11-2-03')"
+                                >
+                                    <b
+                                        ><u
+                                            >56.11-2-03 - Lanchonetes, casas de
+                                            chá, de sucos e similares</u
+                                        ></b
+                                    >
+                                    <i class="ico-xs" id="56.11-2-03ico">⇩</i>
+                                </span>
+                                <a
+                                    href="/cnae-atividade/5611-2-03-lanchonetes-casas-de-cha-de-sucos-e-similares"
+                                    target="_blank"
+                                    style="
+                                        margin-left: 4px;
+                                        vertical-align: bottom;
+                                    "
+                                    title="Clique aqui para buscar empresas com este CNAE / Atividade"
+                                >
+                                    <svg
+                                        class=""
+                                        style="width: 20px; height: 20px"
+                                    >
+                                        <use xlink:href="#external-link"></use>
+                                    </svg>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="panel-a" id="56.11-2-03">
+                            <div class="row">
+                                <div class="col c12">
+                                    Esta atividade compreende:
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col c12">
+                                    <i
+                                        >- o serviço de alimentação para consumo
+                                        no local, com venda ou não de bebidas,
+                                        em estabelecimentos que não oferecem
+                                        serviço completo, tais como:<br />
+                                        - lanchonetes, fast-food, pastelarias,
+                                        casas de chá, casas de suco e
+                                        similares<br />
+                                        - sorveterias, com consumo no local, de
+                                        fabricação própria ou não</i
+                                    >
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col c12">
+                                    Descritores da atividade:
+                                </div>
+                            </div>
+                            <div class="row">
+                                <i>
+                                    Bar sem serviço completo, Serviço de
+                                    alimentação sem serviço completo, Serviço de
+                                    alimentação pizzaria (tipo fast- food),
+                                    Serviço de alimentação browneria, Serviço de
+                                    alimentação gelateria, Serviço de
+                                    alimentação sorveteria, Serviço de
+                                    alimentação casa de doces e salgados,
+                                    Serviço de alimentação casa de suco, Serviço
+                                    de alimentação lanchonete, Serviço de
+                                    alimentação lancheria, Serviço de
+                                    alimentação fast-food, Serviços de
+                                    cafeteria, Casas de chá, Serviço de
+                                    alimentação açaiteria, Serviço de
+                                    alimentação birosca, Serviço de alimentação
+                                    caldo de cana, Serviço de alimentação
+                                    pastelaria,
+                                </i>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px"></div>
+                        <ins
+                            class="adsbygoogle labeladsbygoogle ad_slot_1 llads"
+                            style="display: block"
+                            data-ad-client="ca-pub-8953612832270972"
+                            data-ad-slot="8177923367"
+                            data-full-width-responsive="true"
+                            data-ad-status="filled"
+                        >
+                            <div class="reserve-banner">
+                                <a
+                                    href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                                    style="text-align: center"
+                                >
+                                    <picture>
+                                        <source
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280.webp,
+                                                https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280-1-5x.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280-2x.webp   2x
+                                            "
+                                            width="336"
+                                            height="280"
+                                            media="(max-width: 640px)"
+                                        />
+                                        <source
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300.webp,
+                                                https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300-1-5x.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300-2x.webp   2x
+                                            "
+                                            width="750"
+                                            height="300"
+                                            media="(max-width: 990px)"
+                                        />
+                                        <img
+                                            class="size-full cursor-pointer shadow-lg mx-auto"
+                                            alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                            title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                            src="https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250.webp"
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                                https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250-2x.webp   2x
+                                            "
+                                            loading="lazy"
+                                            width="970"
+                                            height="250"
+                                        />
+                                    </picture>
+                                </a>
+                            </div>
+                        </ins>
+                        <div style="margin-bottom: 30px"></div>
+                        <h2>Quadro de Sócios e Administradores</h2>
+                        <p>
+                            Daiane Aparecida Regini Bellini -
+                            Sócio-Administrador <br />
+                        </p>
+                        <p>
+                            Qualificação do responsável pela empresa:
+                            <b>Sócio-Administrador</b>
+                        </p>
+                        <h2>Sobre</h2>
+                        <p>
+                            A empresa Luar - Restaurante &amp; Lanchonete de
+                            CNPJ 25.065.443/0001-91, fundada em 23/06/2016 e com
+                            razão social Luar Restaurante e Lanchonete LTDA,
+                            está localizada na cidade Osasco do estado São
+                            Paulo. Sua atividade principal, conforme a Receita
+                            Federal, é 56.11-2-01 - Restaurantes e similares.
+                            Sua situação cadastral até o momento é Ativa.
+                        </p>
+                        <h2>Compartilhar</h2>
+                        <p>
+                            <a
+                                rel="nofollow noopener noreferrer"
+                                class="btn btn-b btn-sm"
+                                target="_blank"
+                                href="https://api.whatsapp.com/send?text=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco%20https%3A%2F%2Fcnpj.biz%2F25065443000191"
+                                >Whatsapp</a
+                            >
+                            <a
+                                rel="nofollow noopener noreferrer"
+                                class="btn btn-b btn-sm"
+                                target="_blank"
+                                href="https://www.facebook.com/dialog/share?href=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;app_id=289217905108487"
+                                >Facebook</a
+                            >
+                            <a
+                                rel="nofollow noopener noreferrer"
+                                class="btn btn-b btn-sm"
+                                target="_blank"
+                                href="https://twitter.com/intent/tweet?text=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191"
+                                >Twitter</a
+                            >
+                            <a
+                                rel="nofollow noopener noreferrer"
+                                class="btn btn-b btn-sm"
+                                target="_blank"
+                                href="https://www.pinterest.com/pin/create/button/?url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;description=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco&amp;url="
+                                >Pinterest</a
+                            >
+                        </p>
+                        <h2><label for="q">Faça sua busca:</label></h2>
+                        <div class="row">
+                            <form method="get" onsubmit="return redirect()">
+                                <div class="col c-8">
+                                    <input
+                                        type="text"
+                                        name="q"
+                                        style="max-width: 250px"
+                                        id="q"
+                                        class="smooth search"
+                                        placeholder="Digite nome ou cnpj"
+                                    />
+                                </div>
+                                <div class="col c-4">
+                                    &nbsp;<button
+                                        type="submit"
+                                        class="btn btn-b btn-sm"
+                                    >
+                                        Pesquisar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        <div>
+                            <div
+                                id="anuncio-internal-mobile"
+                                style="text-align: center; width: 100%"
+                            >
+                                <a
+                                    href="https://cnpj.biz?utm_source=pagina_de_empresa_mobile&amp;utm_medium=banner&amp;utm_campaign=banner_chatbot-com-chatgpt"
+                                >
+                                    <picture>
+                                        <source
+                                            media="(max-width: 1023px)"
+                                            srcset="
+                                                https://cdn.cnpj.biz/img/anuncio/mobile/chatbot-com-chatgpt.webp
+                                            "
+                                            sizes="100%"
+                                        />
+                                        <img
+                                            width="300"
+                                            height="300"
+                                            loading="lazy"
+                                            alt="Banner Lista Empresa"
+                                            style="
+                                                box-shadow: 0 10px 15px -3px rgb(0
+                                                                0 0 / 0.1),
+                                                    0 4px 6px -4px rgb(0 0 0 /
+                                                                0.1);
+                                            "
+                                        />
+                                    </picture>
+                                </a>
+                            </div>
+                        </div>
+                        <h2>FAQ - Perguntas e Respostas</h2>
+                        <div itemscope="" itemtype="https://schema.org/FAQPage">
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq1')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >De quem é o CNPJ
+                                                    25.065.443/0001-91?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq1ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq1">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            O CNPJ 25.065.443/0001-91 é da da
+                                            empresa de razão social
+                                            <b
+                                                >Luar Restaurante e Lanchonete
+                                                LTDA</b
+                                            >
+                                            e nome fantasia
+                                            <b
+                                                >Luar - Restaurante &amp;
+                                                Lanchonete</b
+                                            >
+                                            localizada em <b>Osasco/SP</b>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq2')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >Qual a razão social da
+                                                    empresa de CNPJ
+                                                    25.065.443/0001-91?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq2ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq2">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            A Razão Social é
+                                            <b
+                                                >Luar Restaurante e Lanchonete
+                                                LTDA</b
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq3')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >Qual o(s) cnae(s) da
+                                                    empresa Luar - Restaurante
+                                                    &amp; Lanchonete Luar
+                                                    Restaurante e Lanchonete
+                                                    LTDA?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq3ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq3">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            Os Cnae principal é
+                                            <b
+                                                >56.11-2-01 - Restaurantes e
+                                                similares</b
+                                            >
+                                            e o(s) cnae(s) secundários :
+                                            <b
+                                                >56.11-2-03 - Lanchonetes, casas
+                                                de chá, de sucos e similares</b
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq4')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >Qual o endereço da empresa
+                                                    Luar Restaurante e
+                                                    Lanchonete LTDA?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq4ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq4">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            O endereço da empresa Luar
+                                            Restaurante e Lanchonete LTDA é
+                                            <br />
+                                            <b
+                                                >Rua Dom Ercilio Turco 60 Casa
+                                                01<br />
+                                                Vila Osasco<br />
+                                                Osasco SP <br />06080-000<br
+                                            /></b>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq5')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >Qual é o telefone da
+                                                    empresa Luar - Restaurante
+                                                    &amp; Lanchonete Luar
+                                                    Restaurante e Lanchonete
+                                                    LTDA - 25.065.443/0001-91 de
+                                                    Osasco?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq5ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq5">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            O telefone da empresa é (11)
+                                            3691-****, (11) 3681-**** essa
+                                            informação podem ser vistas na
+                                            sessão
+                                            <a
+                                                href="https://cnpj.biz/25065443000191#contato"
+                                                >contato</a
+                                            >
+                                            dessa pagina.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                itemscope=""
+                                itemprop="mainEntity"
+                                itemtype="https://schema.org/Question"
+                            >
+                                <div class="row">
+                                    <div class="col c12">
+                                        <span
+                                            style="cursor: pointer"
+                                            onclick="hideshowdiv('faq6')"
+                                        >
+                                            <b
+                                                ><u itemprop="name"
+                                                    >Como entrar em contato com
+                                                    a empresa Luar - Restaurante
+                                                    &amp; Lanchonete Luar
+                                                    Restaurante e Lanchonete
+                                                    LTDA de Osasco?</u
+                                                ></b
+                                            >
+                                            <i class="ico-xs" id="faq6ico">⇩</i>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="panel-a" id="faq6">
+                                    <div
+                                        class="row"
+                                        itemscope=""
+                                        itemprop="acceptedAnswer"
+                                        itemtype="https://schema.org/Answer"
+                                    >
+                                        <div class="col c12" itemprop="text">
+                                            É possível entrar em contato com a
+                                            empresa pelos telefones (11)
+                                            3691-****, (11) 3681-**** pelo
+                                            e-mail d**************@****.com ,
+                                            essas informações podem ser vistas
+                                            na sessão
+                                            <a
+                                                href="https://cnpj.biz/25065443000191#contato"
+                                                >contato</a
+                                            >
+                                            dessa página
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <h2>Outras empresas</h2>
+                        <a class="btn btn-a btn-sm" href="/25065421000121"
+                            >Fabiola de Souza Santos - 25.065.421/0001-21</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/27890759000143"
+                            >Centromix Bazar LTDA - 27.890.759/0001-43</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/25065432000101"
+                            >Manoel dos Santos Pereira de Sousa -
+                            25.065.432/0001-01</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/27890770000103"
+                            >Liomar Martins Borges - 27.890.770/0001-03</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/25065454000171"
+                            >Luiz Alexandre da Fonseca - 25.065.454/0001-71</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/25065465000151"
+                            >Fundo Municipal do Idoso - 25.065.465/0001-51</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/27890781000193"
+                            >Sandro e Cindy Medicos LTDA - 27.890.781/0001-93</a
+                        >
+                        <br />
+                        <a class="btn btn-a btn-sm" href="/25065476000131"
+                            >Francisco Jose da Conceicao Nunes -
+                            25.065.476/0001-31</a
+                        >
+                        <br />
+                    </div>
+                    <div class="column-2 box">
+                        <div
+                            class="anuncio-internal"
+                            style="position: sticky; top: 5px; width: 100%"
+                        >
+                            <a
+                                href="https://cnpj.biz?utm_source=pagina_de_empresa_desktop&amp;utm_medium=banner&amp;utm_campaign=banner_chatbot-com-chatgpt"
+                            >
+                                <picture>
+                                    <source
+                                        type="image/webp"
+                                        media="(min-width: 990px)"
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/anuncio/desktop/chatbot-com-chatgpt.webp
+                                        "
+                                    />
+                                    <img
+                                        width="300"
+                                        height="600"
+                                        alt="Banner Lista Empresa"
+                                        style="
+                                            box-shadow: 0 10px 15px -3px rgb(0 0
+                                                            0 / 0.1),
+                                                0 4px 6px -4px rgb(0 0 0 / 0.1);
+                                        "
+                                    />
+                                </picture>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="footer">
+        <a href="https://cnpj.biz/blog/politica-de-privacidade"
+            >Política de Privacidade</a
+        >
+    </div>
+    <iframe
+        allow="join-ad-interest-group"
+        data-tagging-id="AW-10780776787"
+        data-load-time="1727103483044"
+        height="0"
+        width="0"
+        src="https://td.doubleclick.net/td/rul/10780776787?random=1727103482868&amp;cv=11&amp;fst=1727103482868&amp;fmt=3&amp;bg=ffffff&amp;guid=ON&amp;async=1&amp;gtm=45je49j0v867677039za200&amp;gcd=13l3l3l3l1l1&amp;dma=0&amp;tag_exp=0&amp;u_w=1366&amp;u_h=768&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;ref=https%3A%2F%2Fcnpj.biz%2Fprocura%2FLuar%2520Restaurante%2520Osasco&amp;hn=www.googleadservices.com&amp;frm=0&amp;tiba=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco&amp;npa=0&amp;pscdl=noapi&amp;auid=833404732.1726847272&amp;uaa=x86&amp;uab=64&amp;uafvl=Chromium%3B128.0.6613.138%7CNot%253BA%253DBrand%3B24.0.0.0%7CGoogle%2520Chrome%3B128.0.6613.138&amp;uamb=0&amp;uam=&amp;uap=macOS&amp;uapv=10.15.7&amp;uaw=0&amp;fledge=1&amp;data=event%3Dgtag.config"
+        style="display: none; visibility: hidden"
+    ></iframe
+    ><ins
+        class="adsbygoogle adsbygoogle-noablate"
+        data-adsbygoogle-status="done"
+        style="display: none !important"
+        data-ad-status="unfilled"
+        ><div
+            id="aswift_0_host"
+            style="
+                border: none;
+                height: 0px;
+                width: 0px;
+                margin: 0px;
+                padding: 0px;
+                position: relative;
+                visibility: visible;
+                background-color: transparent;
+                display: inline-block;
+            "
+        >
+            <iframe
+                id="aswift_0"
+                name="aswift_0"
+                browsingtopics="true"
+                style="
+                    left: 0;
+                    position: absolute;
+                    top: 0;
+                    border: 0;
+                    width: undefinedpx;
+                    height: undefinedpx;
+                "
+                sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+                frameborder="0"
+                marginwidth="0"
+                marginheight="0"
+                vspace="0"
+                hspace="0"
+                allowtransparency="true"
+                scrolling="no"
+                allow="attribution-reporting; run-ad-auction"
+                src="https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-8953612832270972&amp;output=html&amp;adk=1812271804&amp;adf=3025194257&amp;abgtt=6&amp;lmt=1727102497&amp;plaf=1%3A2%2C2%3A2%2C7%3A2&amp;plat=1%3A128%2C2%3A128%2C3%3A128%2C4%3A128%2C8%3A128%2C9%3A32776%2C16%3A8388608%2C17%3A32%2C24%3A32%2C25%3A32%2C30%3A1081344%2C32%3A32%2C41%3A32%2C42%3A32&amp;format=0x0&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;pra=5&amp;wgl=1&amp;aihb=0&amp;asro=0&amp;ailel=1~2~4~6~7~8~9~10~11~12~13~14~15~16~17~18~19~20~21~24~29~30~34&amp;aiael=1~2~4~6~7~8~9~10~11~12~13~14~15~16~17~18~19~20~21~24~29~30~34&amp;aifxl=29_18~30_19&amp;aiixl=29_5~30_6&amp;aslmct=0.7&amp;asamct=0.7&amp;aiepr=1&amp;aipecl=1&amp;uach=WyJtYWNPUyIsIjEwLjE1LjciLCJ4ODYiLCIiLCIxMjguMC42NjEzLjEzOCIsbnVsbCwwLG51bGwsIjY0IixbWyJDaHJvbWl1bSIsIjEyOC4wLjY2MTMuMTM4Il0sWyJOb3Q7QT1CcmFuZCIsIjI0LjAuMC4wIl0sWyJHb29nbGUgQ2hyb21lIiwiMTI4LjAuNjYxMy4xMzgiXV0sMF0.&amp;dt=1727103482358&amp;bpp=43&amp;bdt=821&amp;idt=855&amp;shv=r20240918&amp;mjsv=m202409170101&amp;ptt=9&amp;saldr=aa&amp;abxe=1&amp;cookie=ID%3D6eed34d1325360d4%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MZp_ryYa5lmORPAL8wvLbo2O17ZMw&amp;gpic=UID%3D00000a51b241ebc3%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MamN8zbdyibTGN1t3-HGPWzEQla-Q&amp;eo_id_str=ID%3Da2e12567c301f1da%3AT%3D1726847352%3ART%3D1727103377%3AS%3DAA-AfjbSl424rYKREmzTyvtuEPVn&amp;nras=1&amp;correlator=2906135849960&amp;frm=20&amp;pv=2&amp;u_tz=-180&amp;u_his=1&amp;u_h=768&amp;u_w=1366&amp;u_ah=679&amp;u_aw=1366&amp;u_cd=24&amp;u_sd=1&amp;dmc=8&amp;adx=-12245933&amp;ady=-12245933&amp;biw=1337&amp;bih=536&amp;scr_x=0&amp;scr_y=0&amp;eid=44759876%2C44759927%2C44759842%2C31087217%2C95342766%2C31087281%2C95337196%2C95339678%2C95342338&amp;oid=2&amp;pvsid=1707577583856083&amp;tmod=184205462&amp;uas=0&amp;nvt=1&amp;fsapi=1&amp;ref=https%3A%2F%2Fcnpj.biz%2Fprocura%2FLuar%2520Restaurante%2520Osasco&amp;fc=1920&amp;brdim=0%2C23%2C0%2C23%2C1366%2C23%2C1352%2C657%2C1352%2C536&amp;vis=1&amp;rsz=%7C%7Cs%7C&amp;abl=NS&amp;fu=32768&amp;bc=31&amp;bz=1&amp;td=1&amp;tdf=2&amp;psd=W251bGwsbnVsbCxudWxsLDNd&amp;nt=1&amp;ifi=1&amp;uci=a!1&amp;fsb=1&amp;dtd=907"
+                data-google-container-id="a!1"
+                tabindex="0"
+                title="Advertisement"
+                aria-label="Advertisement"
+                data-load-complete="true"
+            ></iframe></div
+    ></ins>
+    <script>
+        function toggleMenuMobile() {
+            let aberto = document.getElementById("svg-aberto");
+            let fechado = document.getElementById("svg-fechado");
+            let box = document.getElementById("mobile-menu");
+            if (!box) {
+                return;
+            }
+            if (fechado.style.display == "block") {
+                box.style.height = "0px";
+                fechado.style.display = "none";
+                aberto.style.display = "block";
+            } else {
+                box.style.height = `${box.children[0].clientHeight}px`;
+                aberto.style.display = "none";
+                fechado.style.display = "block";
+            }
+        }
+    </script>
+    <script id="enable-push"></script>
+    <script>
+        function verTodasFiliais() {
+            document.getElementById("div_ver_mais").remove();
+            [...document.querySelectorAll(".filial")].map(
+                (x) => (x.style.display = "block")
+            );
+        }
+        !(function (e, n) {
+            setTimeout(function () {
+                if ("serviceWorker" in navigator && "PushManager" in e) {
+                    var i = localStorage.getItem("ignoresubscription"),
+                        t = new Date();
+                    if (!i || t.getTime() > i)
+                        n.getElementById("enable-push").src =
+                            "https://cdn.cnpj.biz/js/enable-push.js?id=f4f3fabd6b64c10791fc0910fb085111";
+                }
+            }, 5e3);
+        })(window, document);
+        function redirect() {
+            return (
+                (window.location.href =
+                    "/procura/" +
+                    encodeURIComponent(document.getElementById("q").value)),
+                !1
+            );
+        }
+        var elements = document.getElementsByClassName("copy"),
+            fc = function () {
+                var e = this.textContent;
+                const t = document.createElement("textarea");
+                (t.value = e),
+                    t.setAttribute("readonly", ""),
+                    (t.style.position = "absolute"),
+                    (t.style.left = "-9999px"),
+                    document.body.appendChild(t);
+                const n =
+                    document.getSelection().rangeCount > 0 &&
+                    document.getSelection().getRangeAt(0);
+                t.select(),
+                    document.execCommand("copy"),
+                    document.body.removeChild(t),
+                    n &&
+                        (document.getSelection().removeAllRanges(),
+                        document.getSelection().addRange(n));
+                var a =
+                    this.parentNode.getElementsByClassName("tooltiptext")[0];
+                (a.innerHTML = "Copiado: " + e),
+                    setTimeout(function () {
+                        a.innerHTML = "Clique para copiar";
+                    }, 4e3);
+            },
+            botPattern = "(googlebot/|bingbot)",
+            re = new RegExp(botPattern, "i"),
+            userAgent = navigator.userAgent;
+        if (!re.test(userAgent))
+            for (var i = 0; i < elements.length; i++) {
+                var tooltip = document.createElement("span");
+                (tooltip.className = "tooltiptext"),
+                    (tooltip.id = "myTooltip"),
+                    (tooltip.style.zIndex = "9999"),
+                    tooltip.appendChild(
+                        document.createTextNode(" Clique para copiar ")
+                    );
+                var parent = elements[i].parentNode,
+                    wrapper = document.createElement("span");
+                (wrapper.className = "tooltip"),
+                    (wrapper.style.display = "inline");
+                var clone = elements[i].cloneNode(!0);
+                parent.replaceChild(wrapper, elements[i]),
+                    wrapper.appendChild(clone),
+                    wrapper.appendChild(tooltip),
+                    clone.addEventListener("click", fc, !1);
+            }
+        function dateDiff(e, t) {
+            var n = new Date(new Date(e).toISOString().substr(0, 10));
+            if (
+                (t || (t = new Date().toISOString().substr(0, 10)),
+                new Date(e).toISOString().substr(0, 10) == t)
+            )
+                return "hoje";
+            var a = new Date(t);
+            if (n > a) {
+                var i = n;
+                (n = a), (a = i);
+            }
+            var o = n.getFullYear(),
+                r = [
+                    31,
+                    (o % 4 == 0 && o % 100 != 0) || o % 400 == 0 ? 29 : 28,
+                    31,
+                    30,
+                    31,
+                    30,
+                    31,
+                    31,
+                    30,
+                    31,
+                    30,
+                    31,
+                ],
+                s = a.getFullYear() - o,
+                l = a.getMonth() - n.getMonth();
+            l < 0 && (s--, (l += 12));
+            var c = a.getDate() - n.getDate();
+            c < 0 && (l > 0 ? l-- : (s--, (l = 11)), (c += r[n.getMonth()]));
+            var d = s + " ano";
+            s > 1 ? (d = s + " anos") : s <= 0 && (d = "");
+            var u = l + " mês ";
+            l > 1 ? (u = l + " meses ") : l <= 0 && (u = "");
+            var f = c + " dia";
+            return (
+                c > 1 ? (f = f += "s") : c <= 0 && (f = ""),
+                "" != d && "" != f && "" != u
+                    ? d + ", " + u + "e " + f
+                    : "" != d && "" != f && "" == u
+                    ? d + " e " + f
+                    : "" != d && "" == f && "" != u
+                    ? d + " e " + u
+                    : "há " + d + u + f
+            );
+        }
+        function openAtividade(e) {
+            let t = e.nextElementSibling;
+            t.classList.toggle("hidden"),
+                t.classList.contains("hidden")
+                    ? (e.querySelector("svg").classList.remove("-rotate-180"),
+                      e.querySelector("svg").classList.add("rotate-0"))
+                    : (e.querySelector("svg").classList.remove("rotate-0"),
+                      e.querySelector("svg").classList.add("-rotate-180"));
+        }
+        function hideshowdiv(e) {
+            var t = document.getElementById(e);
+            t &&
+                (t.style.maxHeight
+                    ? ((t.style.maxHeight = null),
+                      setTimeout(function () {
+                          t.classList.remove("border-div"),
+                              (document.getElementById(e + "ico").innerHTML =
+                                  "⇩");
+                      }, 100))
+                    : ((t.style.maxHeight = t.scrollHeight + "px"),
+                      t.classList.add("border-div"),
+                      (document.getElementById(e + "ico").innerHTML = "⇧")));
+        }
+        !(function (e) {
+            var t = (function (e, t, n) {
+                "use strict";
+                var a, i;
+                if (
+                    ((function () {
+                        var t,
+                            n = {
+                                lazyClass: "lazyload",
+                                loadedClass: "lazyloaded",
+                                loadingClass: "lazyloading",
+                                preloadClass: "lazypreload",
+                                errorClass: "lazyerror",
+                                autosizesClass: "lazyautosizes",
+                                fastLoadedClass: "ls-is-cached",
+                                iframeLoadMode: 0,
+                                srcAttr: "data-src",
+                                srcsetAttr: "data-srcset",
+                                sizesAttr: "data-sizes",
+                                minSize: 40,
+                                customMedia: {},
+                                init: !0,
+                                expFactor: 1.5,
+                                hFac: 0.8,
+                                loadMode: 2,
+                                loadHidden: !0,
+                                ricTimeout: 0,
+                                throttleDelay: 125,
+                            };
+                        for (t in ((i =
+                            e.lazySizesConfig || e.lazysizesConfig || {}),
+                        n))
+                            t in i || (i[t] = n[t]);
+                    })(),
+                    !t || !t.getElementsByClassName)
+                )
+                    return { init: function () {}, cfg: i, noSupport: !0 };
+                var o = t.documentElement,
+                    r = e.HTMLPictureElement,
+                    s = "addEventListener",
+                    l = "getAttribute",
+                    c = e[s].bind(e),
+                    d = e.setTimeout,
+                    u = e.requestAnimationFrame || d,
+                    f = e.requestIdleCallback,
+                    m = /^picture$/i,
+                    p = ["load", "error", "lazyincluded", "_lazyloaded"],
+                    g = {},
+                    v = Array.prototype.forEach,
+                    y = function (e, t) {
+                        return (
+                            g[t] ||
+                                (g[t] = new RegExp("(\\s|^)" + t + "(\\s|$)")),
+                            g[t].test(e[l]("class") || "") && g[t]
+                        );
+                    },
+                    h = function (e, t) {
+                        y(e, t) ||
+                            e.setAttribute(
+                                "class",
+                                (e[l]("class") || "").trim() + " " + t
+                            );
+                    },
+                    z = function (e, t) {
+                        var n;
+                        (n = y(e, t)) &&
+                            e.setAttribute(
+                                "class",
+                                (e[l]("class") || "").replace(n, " ")
+                            );
+                    },
+                    C = function (e, t, n) {
+                        var a = n ? s : "removeEventListener";
+                        n && C(e, t),
+                            p.forEach(function (n) {
+                                e[a](n, t);
+                            });
+                    },
+                    b = function (e, n, i, o, r) {
+                        var s = t.createEvent("Event");
+                        return (
+                            i || (i = {}),
+                            (i.instance = a),
+                            s.initEvent(n, !o, !r),
+                            (s.detail = i),
+                            e.dispatchEvent(s),
+                            s
+                        );
+                    },
+                    E = function (t, n) {
+                        var a;
+                        !r && (a = e.picturefill || i.pf)
+                            ? (n &&
+                                  n.src &&
+                                  !t[l]("srcset") &&
+                                  t.setAttribute("srcset", n.src),
+                              a({ reevaluate: !0, elements: [t] }))
+                            : n && n.src && (t.src = n.src);
+                    },
+                    A = function (e, t) {
+                        return (getComputedStyle(e, null) || {})[t];
+                    },
+                    w = function (e, t, n) {
+                        for (
+                            n = n || e.offsetWidth;
+                            n < i.minSize && t && !e._lazysizesWidth;
+
+                        )
+                            (n = t.offsetWidth), (t = t.parentNode);
+                        return n;
+                    },
+                    L = (function () {
+                        var e,
+                            n,
+                            a = [],
+                            i = [],
+                            o = a,
+                            r = function () {
+                                var t = o;
+                                for (
+                                    o = a.length ? i : a, e = !0, n = !1;
+                                    t.length;
+
+                                )
+                                    t.shift()();
+                                e = !1;
+                            },
+                            s = function (a, i) {
+                                e && !i
+                                    ? a.apply(this, arguments)
+                                    : (o.push(a),
+                                      n || ((n = !0), (t.hidden ? d : u)(r)));
+                            };
+                        return (s._lsFlush = r), s;
+                    })(),
+                    x = function (e, t) {
+                        return t
+                            ? function () {
+                                  L(e);
+                              }
+                            : function () {
+                                  var t = this,
+                                      n = arguments;
+                                  L(function () {
+                                      e.apply(t, n);
+                                  });
+                              };
+                    },
+                    S = function (e) {
+                        var t,
+                            a = 0,
+                            o = i.throttleDelay,
+                            r = i.ricTimeout,
+                            s = function () {
+                                (t = !1), (a = n.now()), e();
+                            },
+                            l =
+                                f && r > 49
+                                    ? function () {
+                                          f(s, { timeout: r }),
+                                              r !== i.ricTimeout &&
+                                                  (r = i.ricTimeout);
+                                      }
+                                    : x(function () {
+                                          d(s);
+                                      }, !0);
+                        return function (e) {
+                            var i;
+                            (e = !0 === e) && (r = 33),
+                                t ||
+                                    ((t = !0),
+                                    (i = o - (n.now() - a)) < 0 && (i = 0),
+                                    e || i < 9 ? l() : d(l, i));
+                        };
+                    },
+                    M = function (e) {
+                        var t,
+                            a,
+                            i = function () {
+                                (t = null), e();
+                            },
+                            o = function () {
+                                var e = n.now() - a;
+                                e < 99 ? d(o, 99 - e) : (f || i)(i);
+                            };
+                        return function () {
+                            (a = n.now()), t || (t = d(o, 99));
+                        };
+                    },
+                    N = (function () {
+                        var r,
+                            f,
+                            p,
+                            g,
+                            w,
+                            N,
+                            T,
+                            B,
+                            D,
+                            H,
+                            R,
+                            I,
+                            W = /^img$/i,
+                            q = /^iframe$/i,
+                            F =
+                                "onscroll" in e &&
+                                !/(gle|ing)bot/.test(navigator.userAgent),
+                            O = 0,
+                            P = 0,
+                            k = -1,
+                            $ = function (e) {
+                                P--, (!e || P < 0 || !e.target) && (P = 0);
+                            },
+                            U = function (e) {
+                                return (
+                                    null == I &&
+                                        (I =
+                                            "hidden" ==
+                                            A(t.body, "visibility")),
+                                    I ||
+                                        !(
+                                            "hidden" ==
+                                                A(e.parentNode, "visibility") &&
+                                            "hidden" == A(e, "visibility")
+                                        )
+                                );
+                            },
+                            j = function (e, n) {
+                                var a,
+                                    i = e,
+                                    r = U(e);
+                                for (
+                                    B -= n, R += n, D -= n, H += n;
+                                    r &&
+                                    (i = i.offsetParent) &&
+                                    i != t.body &&
+                                    i != o;
+
+                                )
+                                    (r = (A(i, "opacity") || 1) > 0) &&
+                                        "visible" != A(i, "overflow") &&
+                                        ((a = i.getBoundingClientRect()),
+                                        (r =
+                                            H > a.left &&
+                                            D < a.right &&
+                                            R > a.top - 1 &&
+                                            B < a.bottom + 1));
+                                return r;
+                            },
+                            Y = function () {
+                                var e,
+                                    n,
+                                    s,
+                                    c,
+                                    d,
+                                    u,
+                                    m,
+                                    p,
+                                    v,
+                                    y,
+                                    h,
+                                    z,
+                                    C = a.elements;
+                                if (
+                                    (g = i.loadMode) &&
+                                    P < 8 &&
+                                    (e = C.length)
+                                ) {
+                                    for (n = 0, k++; n < e; n++)
+                                        if (C[n] && !C[n]._lazyRace)
+                                            if (
+                                                !F ||
+                                                (a.prematureUnveil &&
+                                                    a.prematureUnveil(C[n]))
+                                            )
+                                                Z(C[n]);
+                                            else if (
+                                                (((p =
+                                                    C[n][l]("data-expand")) &&
+                                                    (u = 1 * p)) ||
+                                                    (u = O),
+                                                y ||
+                                                    ((y =
+                                                        !i.expand ||
+                                                        i.expand < 1
+                                                            ? o.clientHeight >
+                                                                  500 &&
+                                                              o.clientWidth >
+                                                                  500
+                                                                ? 500
+                                                                : 370
+                                                            : i.expand),
+                                                    (a._defEx = y),
+                                                    (h = y * i.expFactor),
+                                                    (z = i.hFac),
+                                                    (I = null),
+                                                    O < h &&
+                                                    P < 1 &&
+                                                    k > 2 &&
+                                                    g > 2 &&
+                                                    !t.hidden
+                                                        ? ((O = h), (k = 0))
+                                                        : (O =
+                                                              g > 1 &&
+                                                              k > 1 &&
+                                                              P < 6
+                                                                  ? y
+                                                                  : 0)),
+                                                v !== u &&
+                                                    ((N = innerWidth + u * z),
+                                                    (T = innerHeight + u),
+                                                    (m = -1 * u),
+                                                    (v = u)),
+                                                (s =
+                                                    C[
+                                                        n
+                                                    ].getBoundingClientRect()),
+                                                (R = s.bottom) >= m &&
+                                                    (B = s.top) <= T &&
+                                                    (H = s.right) >= m * z &&
+                                                    (D = s.left) <= N &&
+                                                    (R || H || D || B) &&
+                                                    (i.loadHidden || U(C[n])) &&
+                                                    ((f &&
+                                                        P < 3 &&
+                                                        !p &&
+                                                        (g < 3 || k < 4)) ||
+                                                        j(C[n], u)))
+                                            ) {
+                                                if ((Z(C[n]), (d = !0), P > 9))
+                                                    break;
+                                            } else
+                                                !d &&
+                                                    f &&
+                                                    !c &&
+                                                    P < 4 &&
+                                                    k < 4 &&
+                                                    g > 2 &&
+                                                    (r[0] ||
+                                                        i.preloadAfterLoad) &&
+                                                    (r[0] ||
+                                                        (!p &&
+                                                            (R ||
+                                                                H ||
+                                                                D ||
+                                                                B ||
+                                                                "auto" !=
+                                                                    C[n][l](
+                                                                        i.sizesAttr
+                                                                    )))) &&
+                                                    (c = r[0] || C[n]);
+                                    c && !d && Z(c);
+                                }
+                            },
+                            G = S(Y),
+                            J = function (e) {
+                                var t = e.target;
+                                t._lazyCache
+                                    ? delete t._lazyCache
+                                    : ($(e),
+                                      h(t, i.loadedClass),
+                                      z(t, i.loadingClass),
+                                      C(t, Q),
+                                      b(t, "lazyloaded"));
+                            },
+                            K = x(J),
+                            Q = function (e) {
+                                K({ target: e.target });
+                            },
+                            V = function (e) {
+                                var t,
+                                    n = e[l](i.srcsetAttr);
+                                (t =
+                                    i.customMedia[
+                                        e[l]("data-media") || e[l]("media")
+                                    ]) && e.setAttribute("media", t),
+                                    n && e.setAttribute("srcset", n);
+                            },
+                            X = x(function (e, t, n, a, o) {
+                                var r, s, c, u, f, g;
+                                (f = b(e, "lazybeforeunveil", t))
+                                    .defaultPrevented ||
+                                    (a &&
+                                        (n
+                                            ? h(e, i.autosizesClass)
+                                            : e.setAttribute("sizes", a)),
+                                    (s = e[l](i.srcsetAttr)),
+                                    (r = e[l](i.srcAttr)),
+                                    o &&
+                                        (u =
+                                            (c = e.parentNode) &&
+                                            m.test(c.nodeName || "")),
+                                    (g =
+                                        t.firesLoad ||
+                                        ("src" in e && (s || r || u))),
+                                    (f = { target: e }),
+                                    h(e, i.loadingClass),
+                                    g &&
+                                        (clearTimeout(p),
+                                        (p = d($, 2500)),
+                                        C(e, Q, !0)),
+                                    u &&
+                                        v.call(
+                                            c.getElementsByTagName("source"),
+                                            V
+                                        ),
+                                    s
+                                        ? e.setAttribute("srcset", s)
+                                        : r &&
+                                          !u &&
+                                          (q.test(e.nodeName)
+                                              ? (function (e, t) {
+                                                    var n =
+                                                        e.getAttribute(
+                                                            "data-load-mode"
+                                                        ) || i.iframeLoadMode;
+                                                    0 == n
+                                                        ? e.contentWindow.location.replace(
+                                                              t
+                                                          )
+                                                        : 1 == n && (e.src = t);
+                                                })(e, r)
+                                              : (e.src = r)),
+                                    o && (s || u) && E(e, { src: r })),
+                                    e._lazyRace && delete e._lazyRace,
+                                    z(e, i.lazyClass),
+                                    L(function () {
+                                        var t =
+                                            e.complete && e.naturalWidth > 1;
+                                        (g && !t) ||
+                                            (t && h(e, i.fastLoadedClass),
+                                            J(f),
+                                            (e._lazyCache = !0),
+                                            d(function () {
+                                                "_lazyCache" in e &&
+                                                    delete e._lazyCache;
+                                            }, 9)),
+                                            "lazy" == e.loading && P--;
+                                    }, !0);
+                            }),
+                            Z = function (e) {
+                                if (!e._lazyRace) {
+                                    var t,
+                                        n = W.test(e.nodeName),
+                                        a =
+                                            n &&
+                                            (e[l](i.sizesAttr) ||
+                                                e[l]("sizes")),
+                                        o = "auto" == a;
+                                    ((!o && f) ||
+                                        !n ||
+                                        (!e[l]("src") && !e.srcset) ||
+                                        e.complete ||
+                                        y(e, i.errorClass) ||
+                                        !y(e, i.lazyClass)) &&
+                                        ((t = b(e, "lazyunveilread").detail),
+                                        o && _.updateElem(e, !0, e.offsetWidth),
+                                        (e._lazyRace = !0),
+                                        P++,
+                                        X(e, t, o, a, n));
+                                }
+                            },
+                            ee = M(function () {
+                                (i.loadMode = 3), G();
+                            }),
+                            te = function () {
+                                3 == i.loadMode && (i.loadMode = 2), ee();
+                            },
+                            ne = function () {
+                                f ||
+                                    (n.now() - w < 999
+                                        ? d(ne, 999)
+                                        : ((f = !0),
+                                          (i.loadMode = 3),
+                                          G(),
+                                          c("scroll", te, !0)));
+                            };
+                        return {
+                            _: function () {
+                                (w = n.now()),
+                                    (a.elements = t.getElementsByClassName(
+                                        i.lazyClass
+                                    )),
+                                    (r = t.getElementsByClassName(
+                                        i.lazyClass + " " + i.preloadClass
+                                    )),
+                                    c("scroll", G, !0),
+                                    c("resize", G, !0),
+                                    c("pageshow", function (e) {
+                                        if (e.persisted) {
+                                            var n = t.querySelectorAll(
+                                                "." + i.loadingClass
+                                            );
+                                            n.length &&
+                                                n.forEach &&
+                                                u(function () {
+                                                    n.forEach(function (e) {
+                                                        e.complete && Z(e);
+                                                    });
+                                                });
+                                        }
+                                    }),
+                                    e.MutationObserver
+                                        ? new MutationObserver(G).observe(o, {
+                                              childList: !0,
+                                              subtree: !0,
+                                              attributes: !0,
+                                          })
+                                        : (o[s]("DOMNodeInserted", G, !0),
+                                          o[s]("DOMAttrModified", G, !0),
+                                          setInterval(G, 999)),
+                                    c("hashchange", G, !0),
+                                    [
+                                        "focus",
+                                        "mouseover",
+                                        "click",
+                                        "load",
+                                        "transitionend",
+                                        "animationend",
+                                    ].forEach(function (e) {
+                                        t[s](e, G, !0);
+                                    }),
+                                    /d$|^c/.test(t.readyState)
+                                        ? ne()
+                                        : (c("load", ne),
+                                          t[s]("DOMContentLoaded", G),
+                                          d(ne, 2e4)),
+                                    a.elements.length
+                                        ? (Y(), L._lsFlush())
+                                        : G();
+                            },
+                            checkElems: G,
+                            unveil: Z,
+                            _aLSL: te,
+                        };
+                    })(),
+                    _ = (function () {
+                        var e,
+                            n = x(function (e, t, n, a) {
+                                var i, o, r;
+                                if (
+                                    ((e._lazysizesWidth = a),
+                                    (a += "px"),
+                                    e.setAttribute("sizes", a),
+                                    m.test(t.nodeName || ""))
+                                )
+                                    for (
+                                        o = 0,
+                                            r = (i =
+                                                t.getElementsByTagName(
+                                                    "source"
+                                                )).length;
+                                        o < r;
+                                        o++
+                                    )
+                                        i[o].setAttribute("sizes", a);
+                                n.detail.dataAttr || E(e, n.detail);
+                            }),
+                            a = function (e, t, a) {
+                                var i,
+                                    o = e.parentNode;
+                                o &&
+                                    ((a = w(e, o, a)),
+                                    (i = b(e, "lazybeforesizes", {
+                                        width: a,
+                                        dataAttr: !!t,
+                                    })).defaultPrevented ||
+                                        ((a = i.detail.width) &&
+                                            a !== e._lazysizesWidth &&
+                                            n(e, o, i, a)));
+                            },
+                            o = M(function () {
+                                var t,
+                                    n = e.length;
+                                if (n) for (t = 0; t < n; t++) a(e[t]);
+                            });
+                        return {
+                            _: function () {
+                                (e = t.getElementsByClassName(
+                                    i.autosizesClass
+                                )),
+                                    c("resize", o);
+                            },
+                            checkElems: o,
+                            updateElem: a,
+                        };
+                    })(),
+                    T = function () {
+                        !T.i &&
+                            t.getElementsByClassName &&
+                            ((T.i = !0), _._(), N._());
+                    };
+                return (
+                    d(function () {
+                        i.init && T();
+                    }),
+                    (a = {
+                        cfg: i,
+                        autoSizer: _,
+                        loader: N,
+                        init: T,
+                        uP: E,
+                        aC: h,
+                        rC: z,
+                        hC: y,
+                        fire: b,
+                        gW: w,
+                        rAF: L,
+                    })
+                );
+            })(e, e.document, Date);
+            (e.lazySizes = t),
+                "object" == typeof module &&
+                    module.exports &&
+                    (module.exports = t);
+        })("undefined" != typeof window ? window : {});
+        document.getElementById("TD").innerHTML = dateDiff("2016-06-23");
+        let _instanceAnuncio = Symbol(),
+            _singletonEnforcerAnuncio = Symbol();
+        (window.Anuncio = class e {
+            constructor(e) {
+                if (e !== _singletonEnforcerAnuncio)
+                    throw "Cannot constructor singleton Anuncio";
+                (this.className = "anuncio-internal"),
+                    (this.banners = [
+                        {
+                            name: "mais-leads-mais-vendas",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_mais-leads-mais-vendas",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_mais-leads-mais-vendas",
+                        },
+                        {
+                            name: "chatbot-com-chatgpt",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_chatbot-com-chatgpt",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_chatbot-com-chatgpt",
+                        },
+                        {
+                            name: "geramos-lista-de-leads",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_geramos-lista-de-leads",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_geramos-lista-de-leads",
+                        },
+                        {
+                            name: "chatgpt-no-whatsapp",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_chatgpt-no-whatsapp",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_chatgpt-no-whatsapp",
+                        },
+                        {
+                            name: "empresas-recem-abertas",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_empresas-recem-abertas",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_empresas-recem-abertas",
+                        },
+                        {
+                            name: "acesse-aqui",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_acesse-aqui",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_acesse-aqui",
+                        },
+                        {
+                            name: "maquina-de-vendas",
+                            parameters_desktop:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_desktop&utm_medium=banner&utm_campaign=banner_maquina-de-vendas",
+                            parameters_mobile:
+                                "https://cnpj.biz?utm_source=pagina_de_empresa_mobile&utm_medium=banner&utm_campaign=banner_maquina-de-vendas",
+                        },
+                    ]);
+            }
+            static get getInstance() {
+                return (
+                    this[_instanceAnuncio] ||
+                        (this[_instanceAnuncio] = new e(
+                            _singletonEnforcerAnuncio
+                        )),
+                    this[_instanceAnuncio]
+                );
+            }
+            next() {
+                let e = localStorage.getItem("anuncio-internal");
+                return (
+                    null != e
+                        ? ((e = parseInt(e)),
+                          (e = e >= this.banners.length - 1 ? 0 : e + 1))
+                        : (e = 0),
+                    localStorage.setItem("anuncio-internal", String(e)),
+                    e
+                );
+            }
+            start() {
+                let a = localStorage.getItem("anuncio-internal");
+                null != a
+                    ? ((a = parseInt(a) + 1),
+                      a >= e.getInstance.banners.length && (a = 0))
+                    : (a = 0),
+                    localStorage.setItem("anuncio-internal", String(a));
+            }
+            show() {
+                const a = document.getElementsByClassName(this.className);
+                Array.from(a).forEach((a, n) => {
+                    if (a.querySelector("picture")) return;
+                    let t = this.banners[this.next()],
+                        i = `<a href="${t.parameters_desktop}">\n <picture>\n <source type="image/webp" media="(min-width: 990px)" srcset="https://cdn.cnpj.biz/img/anuncio/desktop/${t.name}.webp">\n <img width="300" height="600"\n alt="Banner Lista Empresa" style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);">\n </picture>\n </a>`;
+                    (a.innerHTML = i),
+                        (i = `<a href="${t.parameters_mobile}">\n <picture>\n <source media="(max-width: 1023px)" srcset="https://cdn.cnpj.biz/img/anuncio/mobile/${t.name}.webp" sizes="100%">\n <img width="300" height="300" loading="lazy"\n alt="Banner Lista Empresa" style="box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);">\n </picture>\n </a>`),
+                        (document.getElementById(
+                            e.getInstance.className + "-mobile"
+                        ).innerHTML = i);
+                });
+            }
+        }),
+            Anuncio.getInstance.show();
+        !(function (e, n) {
+            let elementsCall = document.getElementsByClassName("llads");
+            function handleAdRenderEnded(e) {
+                if (!e.isEmpty) {
+                    var a = e.slot.getSlotElementId(),
+                        n = document.getElementById(a);
+                    n &&
+                        n.previousElementSibling.classList.contains(
+                            "reserve-banner"
+                        ) &&
+                        n.previousElementSibling.remove();
+                }
+            }
+            function loadAds() {
+                Array.prototype.map.call(elementsCall, (e) => {
+                    e.getBoundingClientRect().top -
+                        document.documentElement.clientHeight -
+                        175 <
+                        0 &&
+                        ((adsbygoogle = window.adsbygoogle || []).push({
+                            slotRenderEnded: handleAdRenderEnded,
+                        }),
+                        (elementsCall = Array.prototype.filter.call(
+                            elementsCall,
+                            (a) => e != a
+                        )));
+                }),
+                    0 == elementsCall.length &&
+                        document.removeEventListener("scroll", loadAds);
+            }
+            document.addEventListener("scroll", loadAds, { passive: !0 });
+        })(window, document);
+    </script>
+    <iframe
+        name="googlefcPresent"
+        style="
+            display: none;
+            width: 0px;
+            height: 0px;
+            border: none;
+            z-index: -1000;
+            left: -1000px;
+            top: -1000px;
+        "
+    ></iframe
+    ><protonpass-root-bc45 data-protonpass-role="root"></protonpass-root-bc45
+    ><iframe
+        name="__tcfapiLocator"
+        src="about:blank"
+        style="
+            display: none;
+            width: 0px;
+            height: 0px;
+            border: none;
+            z-index: -1000;
+            left: -1000px;
+            top: -1000px;
+        "
+    ></iframe
+    ><iframe
+        name="googlefcInactive"
+        src="about:blank"
+        style="
+            display: none;
+            width: 0px;
+            height: 0px;
+            border: none;
+            z-index: -1000;
+            left: -1000px;
+            top: -1000px;
+        "
+    ></iframe
+    ><iframe
+        name="googlefcLoaded"
+        src="about:blank"
+        style="
+            display: none;
+            width: 0px;
+            height: 0px;
+            border: none;
+            z-index: -1000;
+            left: -1000px;
+            top: -1000px;
+        "
+    ></iframe
+    ><iframe
+        src="https://www.google.com/recaptcha/api2/aframe"
+        width="0"
+        height="0"
+        style="display: none"
+    ></iframe>
+</body>
+<div class="container" style="height: auto !important">
+    <div class="hero" style="height: auto !important">
+        <div
+            class="row"
+            style="overflow: revert !important; height: auto !important"
+        >
+            <h1 class="post-title empresa-title" style="">
+                Luar - Restaurante &amp; Lanchonete Luar Restaurante e
+                Lanchonete LTDA 25.065.443/0001-91
+            </h1>
+            <ins
+                class="adsbygoogle labeladsbygoogle ad_slot_1"
+                style="display: block; width: 528px; height: 347px"
+                data-ad-client="ca-pub-8953612832270972"
+                data-ad-slot="6609497307"
+                data-full-width-responsive="true"
+                data-adsbygoogle-status="done"
+                data-ad-status="filled"
+            >
+                <div class="reserve-banner">
+                    <a
+                        href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                        style="text-align: center"
+                    >
+                        <picture>
+                            <source
+                                srcset="
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280.webp,
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280-1-5x.webp 1.5x,
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-336x280-2x.webp   2x
+                                "
+                                width="336"
+                                height="280"
+                                media="(max-width: 640px)"
+                            />
+                            <source
+                                srcset="
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300.webp,
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300-1-5x.webp 1.5x,
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-750x300-2x.webp   2x
+                                "
+                                width="750"
+                                height="300"
+                                media="(max-width: 990px)"
+                            />
+                            <img
+                                class="size-full cursor-pointer shadow-lg mx-auto"
+                                alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                src="https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250.webp"
+                                srcset="
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                    https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-970x250-2x.webp   2x
+                                "
+                                width="970"
+                                height="250"
+                                loading="lazy"
+                            />
+                        </picture>
+                    </a>
+                </div>
+                <div
+                    id="aswift_1_host"
+                    style="
+                        border: none;
+                        height: 347px;
+                        width: 528px;
+                        margin: 0px;
+                        padding: 0px;
+                        position: relative;
+                        visibility: visible;
+                        background-color: transparent;
+                        display: inline-block;
+                    "
+                >
+                    <iframe
+                        id="aswift_1"
+                        name="aswift_1"
+                        browsingtopics="true"
+                        style="
+                            left: 0;
+                            position: absolute;
+                            top: 0;
+                            border: 0;
+                            width: 528px;
+                            height: 347px;
+                        "
+                        sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+                        width="528"
+                        height="347"
+                        frameborder="0"
+                        marginwidth="0"
+                        marginheight="0"
+                        vspace="0"
+                        hspace="0"
+                        allowtransparency="true"
+                        scrolling="no"
+                        allow="attribution-reporting; run-ad-auction"
+                        src="https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-8953612832270972&amp;output=html&amp;h=347&amp;slotname=6609497307&amp;adk=498283116&amp;adf=2369281301&amp;pi=t.ma~as.6609497307&amp;w=528&amp;abgtt=6&amp;fwrn=4&amp;fwrnh=100&amp;lmt=1727102497&amp;rafmt=12&amp;format=528x347&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;fwr=0&amp;fwrattr=true&amp;rh=347&amp;rw=528&amp;sfro=1&amp;wgl=1&amp;uach=WyJtYWNPUyIsIjEwLjE1LjciLCJ4ODYiLCIiLCIxMjguMC42NjEzLjEzOCIsbnVsbCwwLG51bGwsIjY0IixbWyJDaHJvbWl1bSIsIjEyOC4wLjY2MTMuMTM4Il0sWyJOb3Q7QT1CcmFuZCIsIjI0LjAuMC4wIl0sWyJHb29nbGUgQ2hyb21lIiwiMTI4LjAuNjYxMy4xMzgiXV0sMF0.&amp;dt=1727103482401&amp;bpp=154&amp;bdt=864&amp;idt=888&amp;shv=r20240918&amp;mjsv=m202409170101&amp;ptt=9&amp;saldr=aa&amp;abxe=1&amp;cookie=ID%3D6eed34d1325360d4%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MZp_ryYa5lmORPAL8wvLbo2O17ZMw&amp;gpic=UID%3D00000a51b241ebc3%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MamN8zbdyibTGN1t3-HGPWzEQla-Q&amp;eo_id_str=ID%3Da2e12567c301f1da%3AT%3D1726847352%3ART%3D1727103377%3AS%3DAA-AfjbSl424rYKREmzTyvtuEPVn&amp;prev_fmts=0x0&amp;nras=1&amp;correlator=2906135849960&amp;frm=20&amp;pv=1&amp;u_tz=-180&amp;u_his=1&amp;u_h=768&amp;u_w=1366&amp;u_ah=679&amp;u_aw=1366&amp;u_cd=24&amp;u_sd=1&amp;dmc=8&amp;adx=54&amp;ady=299&amp;biw=1337&amp;bih=536&amp;scr_x=0&amp;scr_y=0&amp;eid=44759876%2C44759927%2C44759842%2C31087217%2C95342766%2C31087281%2C95337196%2C95339678%2C95342338&amp;oid=2&amp;pvsid=1707577583856083&amp;tmod=184205462&amp;uas=0&amp;nvt=1&amp;ref=https%3A%2F%2Fcnpj.biz%2Fprocura%2FLuar%2520Restaurante%2520Osasco&amp;fc=1920&amp;brdim=0%2C23%2C0%2C23%2C1366%2C23%2C1352%2C657%2C1352%2C536&amp;vis=1&amp;rsz=%7Cd%7CeE%7Cp&amp;abl=XS&amp;pfx=0&amp;fu=128&amp;bc=31&amp;bz=1&amp;td=1&amp;tdf=2&amp;psd=W251bGwsbnVsbCxudWxsLDNd&amp;nt=1&amp;ifi=2&amp;uci=a!2&amp;fsb=1&amp;dtd=1070"
+                        data-google-container-id="a!2"
+                        tabindex="0"
+                        title="Advertisement"
+                        aria-label="Advertisement"
+                        data-google-query-id="CNvvku2p2YgDFctc3QIdMZkzWg"
+                        data-load-complete="true"
+                    ></iframe></div
+            ></ins>
+            <script>
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
+            <div
+                class="main"
+                style="
+                    display: flex;
+                    width: 100%;
+                    height: auto !important;
+                    position: relative;
+                "
+            >
+                <div class="column-1 box" style="height: auto !important">
+                    <h2 style="margin-top: 10px">Informações de Registro</h2>
+                    <p style="justify-content: left">
+                        CNPJ:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">25.065.443/0001-91</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                        -
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">25065443000191</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Inscrição Estadual SP:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">492.863.004.113</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Razão Social:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy"
+                                >Luar Restaurante e Lanchonete LTDA</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Nome Fantasia:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy"
+                                >Luar - Restaurante &amp; Lanchonete</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Data da Abertura:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">23/06/2016</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy" id="TD">8 anos e 3 meses </b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>Porte: <b>Micro Empresa</b></p>
+                    <p>
+                        Natureza Jurídica:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Sociedade Empresária Limitada</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>Opção pelo MEI: <b>Não</b></p>
+                    <p>Opção pelo Simples: <b>Sim</b></p>
+                    <p>Data opção Simples: <b>01/01/2020</b></p>
+                    <p>
+                        Capital Social:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">R$ 10.000,00</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Tipo:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Matriz</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Situação:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Ativa</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Data Situação Cadastral:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">23/06/2016</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <div style="margin-top: 20px"></div>
+                    <ins
+                        class="adsbygoogle labeladsbygoogle ad_slot_1 llads"
+                        style="
+                            display: block;
+                            height: auto !important;
+                            min-height: 0px !important;
+                        "
+                        data-ad-client="ca-pub-8953612832270972"
+                        data-ad-slot="7896761848"
+                        data-ad-format="rectangle, horizontal"
+                        data-full-width-responsive="true"
+                        data-ad-status="filled"
+                        data-adsbygoogle-status="done"
+                    >
+                        <div class="reserve-banner">
+                            <a
+                                href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                                style="text-align: center"
+                            >
+                                <picture>
+                                    <source
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp,
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-336x280.webp 2x
+                                        "
+                                        width="336"
+                                        height="280"
+                                        media="(max-width: 640px)"
+                                    />
+                                    <source
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300.webp,
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300-1-5x.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-750x300-2x.webp   2x
+                                        "
+                                        width="750"
+                                        height="300"
+                                        media="(max-width: 990px)"
+                                    />
+                                    <img
+                                        class="size-full cursor-pointer shadow-lg mx-auto"
+                                        alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                        title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                        src="https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250.webp"
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-otimizacao-de-processos-cnpj-biz-970x250-2x.webp   2x
+                                        "
+                                        loading="lazy"
+                                        width="970"
+                                        height="250"
+                                    />
+                                </picture>
+                            </a>
+                        </div>
+                        <div
+                            id="aswift_2_host"
+                            style="
+                                border: none;
+                                height: 280px;
+                                width: 508px;
+                                margin: 0px;
+                                padding: 0px;
+                                position: relative;
+                                visibility: visible;
+                                background-color: transparent;
+                                display: inline-block;
+                                overflow: visible;
+                            "
+                        >
+                            <iframe
+                                id="aswift_2"
+                                name="aswift_2"
+                                browsingtopics="true"
+                                style="
+                                    left: 0;
+                                    position: absolute;
+                                    top: 0;
+                                    border: 0;
+                                    width: 508px;
+                                    height: 280px;
+                                "
+                                sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+                                width="508"
+                                height="280"
+                                frameborder="0"
+                                marginwidth="0"
+                                marginheight="0"
+                                vspace="0"
+                                hspace="0"
+                                allowtransparency="true"
+                                scrolling="no"
+                                allow="attribution-reporting; run-ad-auction"
+                                src="https://googleads.g.doubleclick.net/pagead/ads?gdpr=0&amp;client=ca-pub-8953612832270972&amp;output=html&amp;h=280&amp;slotname=7896761848&amp;adk=1170775128&amp;adf=721852255&amp;pi=t.ma~as.7896761848&amp;w=508&amp;abgtt=6&amp;fwrn=4&amp;fwrnh=100&amp;lmt=1727102497&amp;rafmt=5&amp;format=508x280&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;fwr=0&amp;fwrattr=true&amp;rpe=1&amp;resp_fmts=3&amp;wgl=1&amp;uach=WyJtYWNPUyIsIjEwLjE1LjciLCJ4ODYiLCIiLCIxMjguMC42NjEzLjEzOCIsbnVsbCwwLG51bGwsIjY0IixbWyJDaHJvbWl1bSIsIjEyOC4wLjY2MTMuMTM4Il0sWyJOb3Q7QT1CcmFuZCIsIjI0LjAuMC4wIl0sWyJHb29nbGUgQ2hyb21lIiwiMTI4LjAuNjYxMy4xMzgiXV0sMF0.&amp;dt=1727103805571&amp;bpp=6&amp;bdt=324036&amp;idt=6&amp;shv=r20240918&amp;mjsv=m202409170101&amp;ptt=9&amp;saldr=aa&amp;abxe=1&amp;cookie=ID%3D6eed34d1325360d4%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MZp_ryYa5lmORPAL8wvLbo2O17ZMw&amp;gpic=UID%3D00000a51b241ebc3%3AT%3D1726847352%3ART%3D1727103377%3AS%3DALNI_MamN8zbdyibTGN1t3-HGPWzEQla-Q&amp;eo_id_str=ID%3Da2e12567c301f1da%3AT%3D1726847352%3ART%3D1727103377%3AS%3DAA-AfjbSl424rYKREmzTyvtuEPVn&amp;prev_fmts=0x0%2C528x347&amp;nras=1&amp;correlator=2906135849960&amp;frm=20&amp;pv=1&amp;u_tz=-180&amp;u_his=1&amp;u_h=768&amp;u_w=1366&amp;u_ah=679&amp;u_aw=1366&amp;u_cd=24&amp;u_sd=1&amp;dmc=8&amp;adx=50&amp;ady=1412&amp;biw=608&amp;bih=536&amp;scr_x=0&amp;scr_y=702&amp;eid=44759876%2C44759927%2C44759842%2C31087217%2C95342766%2C31087281%2C95337196%2C95339678%2C95342338&amp;oid=2&amp;psts=AOrYGsnO7_toJ0prlRPL0ZyJT2-VRvRUp5tDLkj-ah7aQTEmp7Pken7PJ6oZvqhF2uecWz4aw-jn_8vjBaOfSlEUBCZW&amp;pvsid=1707577583856083&amp;tmod=184205462&amp;uas=0&amp;nvt=1&amp;ref=https%3A%2F%2Fcnpj.biz%2Fprocura%2FLuar%2520Restaurante%2520Osasco&amp;fc=1920&amp;brdim=0%2C23%2C0%2C23%2C1366%2C23%2C1352%2C657%2C623%2C536&amp;vis=1&amp;rsz=%7Cd%7CeEbr%7Cp&amp;abl=XS&amp;pfx=0&amp;fu=128&amp;bc=31&amp;bz=2.17&amp;td=1&amp;tdf=2&amp;psd=W251bGwsbnVsbCxudWxsLDNd&amp;nt=1&amp;ifi=3&amp;uci=a!3&amp;btvi=1&amp;fsb=1&amp;dtd=32"
+                                data-google-container-id="a!3"
+                                tabindex="0"
+                                title="Advertisement"
+                                aria-label="Advertisement"
+                                data-google-query-id="CJnD1Yar2YgDFctK3QIdIqc87w"
+                                data-load-complete="true"
+                            ></iframe></div
+                    ></ins>
+                    <div style="margin-bottom: 30px"></div>
+                    <h2 id="contato">Contatos</h2>
+                    <p>
+                        E-mail:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">dbellini.aregini@gmail.com</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                        <a href="mailto:dbellini.aregini@gmail.com"
+                            >(Enviar E-mail)</a
+                        >
+                    </p>
+                    <p>
+                        Telefone(s): <br />
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">(11) 3691-3607</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                        <a href="tel:1136913607"> (Ligar)</a> <br />
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">(11) 3681-3885</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                        <a href="tel:1136813885"> (Ligar)</a> <br />
+                    </p>
+                    <h2>Localização</h2>
+                    <p>
+                        Logradouro:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Rua Dom Ercilio Turco, 60</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Complemento:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Casa 01</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Bairro:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">Vila Osasco</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        CEP:
+                        <span class="tooltip" style="display: inline"
+                            ><b class="copy">06080-000</b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <p>
+                        Município:
+                        <b
+                            ><a href="https://cnpj.biz/empresas/osasco-sp"
+                                >Osasco</a
+                            ></b
+                        >
+                    </p>
+                    <p>
+                        Estado:
+                        <b
+                            ><a href="https://cnpj.biz/empresas/estado/SP"
+                                >São Paulo</a
+                            ></b
+                        >
+                    </p>
+                    <p>
+                        Para correspondência: <br /><span
+                            class="tooltip"
+                            style="display: inline"
+                            ><b class="copy"
+                                >Luar - Restaurante &amp; Lanchonete Luar
+                                Restaurante e Lanchonete LTDA<br />
+                                Rua Dom Ercilio Turco 60 Casa 01<br />
+                                Vila Osasco<br />
+                                Osasco SP <br />06080-000<br /></b
+                            ><span
+                                class="tooltiptext"
+                                id="myTooltip"
+                                style="z-index: 9999"
+                            >
+                                Clique para copiar
+                            </span></span
+                        >
+                    </p>
+                    <a
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        class="btn btn-b btn-sm"
+                        href="https://www.google.com.br/maps/search/Rua Dom Ercilio Turco 60 Vila Osasco Osasco SP"
+                    >
+                        <div
+                            style="display: flex; align-items: center; gap: 5px"
+                        >
+                            <div>Procurar no Google Maps</div>
+                            <div>
+                                <svg class="" style="width: 20px; height: 20px">
+                                    <use xlink:href="#maps"></use>
+                                </svg>
+                            </div>
+                        </div>
+                    </a>
+                    <h2>Atividades - CNAES</h2>
+                    <div class="row">
+                        <div class="col c12">
+                            Principal:
+                            <span
+                                style="cursor: pointer"
+                                onclick="hideshowdiv('56.11-2-01')"
+                            >
+                                <b
+                                    ><u
+                                        >56.11-2-01 - Restaurantes e
+                                        similares</u
+                                    ></b
+                                >
+                                <i class="ico-xs" id="56.11-2-01ico">⇩</i>
+                            </span>
+                            <a
+                                href="/cnae-atividade/5611-2-01-restaurantes-e-similares"
+                                target="_blank"
+                                style="margin-left: 4px; vertical-align: bottom"
+                                title="Clique aqui para buscar empresas com este CNAE / Atividade"
+                            >
+                                <svg class="" style="width: 20px; height: 20px">
+                                    <use xlink:href="#external-link"></use>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="panel-a" id="56.11-2-01">
+                        <div class="row">
+                            <div class="col c12">
+                                Esta atividade compreende:
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">
+                                <i
+                                    >- as atividades de vender e servir comida
+                                    preparada, com ou sem bebidas alcoólicas ao
+                                    público em geral, com serviço completo<br />
+                                    - os restaurantes self-service ou de comida
+                                    a quilo<br />
+                                    - as atividades de restaurante e bares em
+                                    embarcações explorados por terceiros</i
+                                >
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">Descritores da atividade:</div>
+                        </div>
+                        <div class="row">
+                            <i>
+                                Restaurante com serviço completo, Serviço de
+                                restaurantes e bares em embarcações explorados
+                                por terceiros, Restaurantes e similares,
+                                Serviços de alimentação com serviço completo,
+                                Alimentação, comida, refeição a peso, Serviço de
+                                alimentação rotisseria, Serviço de alimentação
+                                churrascaria, Serviço de alimentação trattoria,
+                                Serviço de alimentação self-service, Serviço de
+                                alimentação a quilo, Serviço de alimentação
+                                exploração de vagões-restaurantes, por
+                                terceiros, Serviço de restaurante por comida a
+                                quilo, Alimentação, comida, refeição a kilo,
+                                Serviço de alimentação pensão, Serviço de
+                                alimentação pizzaria com serviço completo,
+                            </i>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col c12">Secundária(s):</div>
+                    </div>
+                    <div class="row">
+                        <div class="col c12">
+                            <span
+                                style="cursor: pointer"
+                                onclick="hideshowdiv('56.11-2-03')"
+                            >
+                                <b
+                                    ><u
+                                        >56.11-2-03 - Lanchonetes, casas de chá,
+                                        de sucos e similares</u
+                                    ></b
+                                >
+                                <i class="ico-xs" id="56.11-2-03ico">⇩</i>
+                            </span>
+                            <a
+                                href="/cnae-atividade/5611-2-03-lanchonetes-casas-de-cha-de-sucos-e-similares"
+                                target="_blank"
+                                style="margin-left: 4px; vertical-align: bottom"
+                                title="Clique aqui para buscar empresas com este CNAE / Atividade"
+                            >
+                                <svg class="" style="width: 20px; height: 20px">
+                                    <use xlink:href="#external-link"></use>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="panel-a" id="56.11-2-03">
+                        <div class="row">
+                            <div class="col c12">
+                                Esta atividade compreende:
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">
+                                <i
+                                    >- o serviço de alimentação para consumo no
+                                    local, com venda ou não de bebidas, em
+                                    estabelecimentos que não oferecem serviço
+                                    completo, tais como:<br />
+                                    - lanchonetes, fast-food, pastelarias, casas
+                                    de chá, casas de suco e similares<br />
+                                    - sorveterias, com consumo no local, de
+                                    fabricação própria ou não</i
+                                >
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col c12">Descritores da atividade:</div>
+                        </div>
+                        <div class="row">
+                            <i>
+                                Bar sem serviço completo, Serviço de alimentação
+                                sem serviço completo, Serviço de alimentação
+                                pizzaria (tipo fast- food), Serviço de
+                                alimentação browneria, Serviço de alimentação
+                                gelateria, Serviço de alimentação sorveteria,
+                                Serviço de alimentação casa de doces e salgados,
+                                Serviço de alimentação casa de suco, Serviço de
+                                alimentação lanchonete, Serviço de alimentação
+                                lancheria, Serviço de alimentação fast-food,
+                                Serviços de cafeteria, Casas de chá, Serviço de
+                                alimentação açaiteria, Serviço de alimentação
+                                birosca, Serviço de alimentação caldo de cana,
+                                Serviço de alimentação pastelaria,
+                            </i>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px"></div>
+                    <ins
+                        class="adsbygoogle labeladsbygoogle ad_slot_1 llads"
+                        style="display: block"
+                        data-ad-client="ca-pub-8953612832270972"
+                        data-ad-slot="8177923367"
+                        data-full-width-responsive="true"
+                        data-ad-status="filled"
+                    >
+                        <div class="reserve-banner">
+                            <a
+                                href="https://cnpj.biz/lista-de-empresas-segmento/?utm_source=cnpjbiz-desktop&amp;utm_medium=banner-adsense-noprint&amp;utm_campaign=gestao-de-clientes-mockup"
+                                style="text-align: center"
+                            >
+                                <picture>
+                                    <source
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280.webp,
+                                            https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280-1-5x.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-gestao-de-clientes-simplificada-cnpj-biz-claro-336x280-2x.webp   2x
+                                        "
+                                        width="336"
+                                        height="280"
+                                        media="(max-width: 640px)"
+                                    />
+                                    <source
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300.webp,
+                                            https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300-1-5x.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-maximize-sua-equipe-de-vendas-cnpj-biz-claro-750x300-2x.webp   2x
+                                        "
+                                        width="750"
+                                        height="300"
+                                        media="(max-width: 990px)"
+                                    />
+                                    <img
+                                        class="size-full cursor-pointer shadow-lg mx-auto"
+                                        alt="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                        title="Conheça a plataforma CNPJ Biz e maximize suas vendas"
+                                        src="https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250.webp"
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250-1-5x.webp 1.5x,
+                                            https://cdn.cnpj.biz/img/banner/banner-potencializa-suas-vendas-cnpj-biz-970x250-2x.webp   2x
+                                        "
+                                        loading="lazy"
+                                        width="970"
+                                        height="250"
+                                    />
+                                </picture>
+                            </a>
+                        </div>
+                    </ins>
+                    <div style="margin-bottom: 30px"></div>
+                    <h2>Quadro de Sócios e Administradores</h2>
+                    <p>
+                        Daiane Aparecida Regini Bellini - Sócio-Administrador
+                        <br />
+                    </p>
+                    <p>
+                        Qualificação do responsável pela empresa:
+                        <b>Sócio-Administrador</b>
+                    </p>
+                    <h2>Sobre</h2>
+                    <p>
+                        A empresa Luar - Restaurante &amp; Lanchonete de CNPJ
+                        25.065.443/0001-91, fundada em 23/06/2016 e com razão
+                        social Luar Restaurante e Lanchonete LTDA, está
+                        localizada na cidade Osasco do estado São Paulo. Sua
+                        atividade principal, conforme a Receita Federal, é
+                        56.11-2-01 - Restaurantes e similares. Sua situação
+                        cadastral até o momento é Ativa.
+                    </p>
+                    <h2>Compartilhar</h2>
+                    <p>
+                        <a
+                            rel="nofollow noopener noreferrer"
+                            class="btn btn-b btn-sm"
+                            target="_blank"
+                            href="https://api.whatsapp.com/send?text=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco%20https%3A%2F%2Fcnpj.biz%2F25065443000191"
+                            >Whatsapp</a
+                        >
+                        <a
+                            rel="nofollow noopener noreferrer"
+                            class="btn btn-b btn-sm"
+                            target="_blank"
+                            href="https://www.facebook.com/dialog/share?href=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;app_id=289217905108487"
+                            >Facebook</a
+                        >
+                        <a
+                            rel="nofollow noopener noreferrer"
+                            class="btn btn-b btn-sm"
+                            target="_blank"
+                            href="https://twitter.com/intent/tweet?text=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco&amp;url=https%3A%2F%2Fcnpj.biz%2F25065443000191"
+                            >Twitter</a
+                        >
+                        <a
+                            rel="nofollow noopener noreferrer"
+                            class="btn btn-b btn-sm"
+                            target="_blank"
+                            href="https://www.pinterest.com/pin/create/button/?url=https%3A%2F%2Fcnpj.biz%2F25065443000191&amp;description=Luar%20-%20Restaurante%20%26%20Lanchonete%2025065443000191%20Osasco&amp;url="
+                            >Pinterest</a
+                        >
+                    </p>
+                    <h2><label for="q">Faça sua busca:</label></h2>
+                    <div class="row">
+                        <form method="get" onsubmit="return redirect()">
+                            <div class="col c-8">
+                                <input
+                                    type="text"
+                                    name="q"
+                                    style="max-width: 250px"
+                                    id="q"
+                                    class="smooth search"
+                                    placeholder="Digite nome ou cnpj"
+                                />
+                            </div>
+                            <div class="col c-4">
+                                &nbsp;<button
+                                    type="submit"
+                                    class="btn btn-b btn-sm"
+                                >
+                                    Pesquisar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <div>
+                        <div
+                            id="anuncio-internal-mobile"
+                            style="text-align: center; width: 100%"
+                        >
+                            <a
+                                href="https://cnpj.biz?utm_source=pagina_de_empresa_mobile&amp;utm_medium=banner&amp;utm_campaign=banner_chatbot-com-chatgpt"
+                            >
+                                <picture>
+                                    <source
+                                        media="(max-width: 1023px)"
+                                        srcset="
+                                            https://cdn.cnpj.biz/img/anuncio/mobile/chatbot-com-chatgpt.webp
+                                        "
+                                        sizes="100%"
+                                    />
+                                    <img
+                                        width="300"
+                                        height="300"
+                                        loading="lazy"
+                                        alt="Banner Lista Empresa"
+                                        style="
+                                            box-shadow: 0 10px 15px -3px rgb(0 0
+                                                            0 / 0.1),
+                                                0 4px 6px -4px rgb(0 0 0 / 0.1);
+                                        "
+                                    />
+                                </picture>
+                            </a>
+                        </div>
+                    </div>
+                    <h2>FAQ - Perguntas e Respostas</h2>
+                    <div itemscope="" itemtype="https://schema.org/FAQPage">
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq1')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >De quem é o CNPJ
+                                                25.065.443/0001-91?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq1ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq1">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        O CNPJ 25.065.443/0001-91 é da da
+                                        empresa de razão social
+                                        <b
+                                            >Luar Restaurante e Lanchonete
+                                            LTDA</b
+                                        >
+                                        e nome fantasia
+                                        <b
+                                            >Luar - Restaurante &amp;
+                                            Lanchonete</b
+                                        >
+                                        localizada em <b>Osasco/SP</b>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq2')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >Qual a razão social da empresa
+                                                de CNPJ 25.065.443/0001-91?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq2ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq2">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        A Razão Social é
+                                        <b
+                                            >Luar Restaurante e Lanchonete
+                                            LTDA</b
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq3')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >Qual o(s) cnae(s) da empresa
+                                                Luar - Restaurante &amp;
+                                                Lanchonete Luar Restaurante e
+                                                Lanchonete LTDA?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq3ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq3">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        Os Cnae principal é
+                                        <b
+                                            >56.11-2-01 - Restaurantes e
+                                            similares</b
+                                        >
+                                        e o(s) cnae(s) secundários :
+                                        <b
+                                            >56.11-2-03 - Lanchonetes, casas de
+                                            chá, de sucos e similares</b
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq4')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >Qual o endereço da empresa Luar
+                                                Restaurante e Lanchonete
+                                                LTDA?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq4ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq4">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        O endereço da empresa Luar Restaurante e
+                                        Lanchonete LTDA é <br />
+                                        <b
+                                            >Rua Dom Ercilio Turco 60 Casa 01<br />
+                                            Vila Osasco<br />
+                                            Osasco SP <br />06080-000<br
+                                        /></b>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq5')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >Qual é o telefone da empresa
+                                                Luar - Restaurante &amp;
+                                                Lanchonete Luar Restaurante e
+                                                Lanchonete LTDA -
+                                                25.065.443/0001-91 de Osasco?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq5ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq5">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        O telefone da empresa é (11) 3691-****,
+                                        (11) 3681-**** essa informação podem ser
+                                        vistas na sessão
+                                        <a
+                                            href="https://cnpj.biz/25065443000191#contato"
+                                            >contato</a
+                                        >
+                                        dessa pagina.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            itemscope=""
+                            itemprop="mainEntity"
+                            itemtype="https://schema.org/Question"
+                        >
+                            <div class="row">
+                                <div class="col c12">
+                                    <span
+                                        style="cursor: pointer"
+                                        onclick="hideshowdiv('faq6')"
+                                    >
+                                        <b
+                                            ><u itemprop="name"
+                                                >Como entrar em contato com a
+                                                empresa Luar - Restaurante &amp;
+                                                Lanchonete Luar Restaurante e
+                                                Lanchonete LTDA de Osasco?</u
+                                            ></b
+                                        >
+                                        <i class="ico-xs" id="faq6ico">⇩</i>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="panel-a" id="faq6">
+                                <div
+                                    class="row"
+                                    itemscope=""
+                                    itemprop="acceptedAnswer"
+                                    itemtype="https://schema.org/Answer"
+                                >
+                                    <div class="col c12" itemprop="text">
+                                        É possível entrar em contato com a
+                                        empresa pelos telefones (11) 3691-****,
+                                        (11) 3681-**** pelo e-mail
+                                        d**************@****.com , essas
+                                        informações podem ser vistas na sessão
+                                        <a
+                                            href="https://cnpj.biz/25065443000191#contato"
+                                            >contato</a
+                                        >
+                                        dessa página
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <h2>Outras empresas</h2>
+                    <a class="btn btn-a btn-sm" href="/25065421000121"
+                        >Fabiola de Souza Santos - 25.065.421/0001-21</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/27890759000143"
+                        >Centromix Bazar LTDA - 27.890.759/0001-43</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/25065432000101"
+                        >Manoel dos Santos Pereira de Sousa -
+                        25.065.432/0001-01</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/27890770000103"
+                        >Liomar Martins Borges - 27.890.770/0001-03</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/25065454000171"
+                        >Luiz Alexandre da Fonseca - 25.065.454/0001-71</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/25065465000151"
+                        >Fundo Municipal do Idoso - 25.065.465/0001-51</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/27890781000193"
+                        >Sandro e Cindy Medicos LTDA - 27.890.781/0001-93</a
+                    >
+                    <br />
+                    <a class="btn btn-a btn-sm" href="/25065476000131"
+                        >Francisco Jose da Conceicao Nunes -
+                        25.065.476/0001-31</a
+                    >
+                    <br />
+                </div>
+                <div class="column-2 box">
+                    <div
+                        class="anuncio-internal"
+                        style="position: sticky; top: 5px; width: 100%"
+                    >
+                        <a
+                            href="https://cnpj.biz?utm_source=pagina_de_empresa_desktop&amp;utm_medium=banner&amp;utm_campaign=banner_chatbot-com-chatgpt"
+                        >
+                            <picture>
+                                <source
+                                    type="image/webp"
+                                    media="(min-width: 990px)"
+                                    srcset="
+                                        https://cdn.cnpj.biz/img/anuncio/desktop/chatbot-com-chatgpt.webp
+                                    "
+                                />
+                                <img
+                                    width="300"
+                                    height="600"
+                                    alt="Banner Lista Empresa"
+                                    style="
+                                        box-shadow: 0 10px 15px -3px rgb(0 0 0 /
+                                                        0.1),
+                                            0 4px 6px -4px rgb(0 0 0 / 0.1);
+                                    "
+                                />
+                            </picture>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
