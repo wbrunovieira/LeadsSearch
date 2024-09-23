@@ -1,7 +1,6 @@
 package main
 
 import (
-	
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,15 +11,11 @@ import (
 
 	"github.com/streadway/amqp"
 
-	
-
 	"github.com/joho/godotenv"
-	
-
-	
 )
 
 func main() {
+
     log.Println("Starting the service...")
     err := godotenv.Load()
     if err != nil {
@@ -49,13 +44,14 @@ func main() {
     service := googleplaces.NewService(apiKey)
     city := "Osasco"
     categoria := "restaurantes"
+    radius:= 1000
 
     coordinates, err := service.GeocodeCity(city)
     if err != nil {
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }
 
-    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, 1000)
+    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius)
     if err != nil {
         log.Fatalf("Failed to search places: %v", err)
     }
@@ -72,8 +68,12 @@ func main() {
         for k, v := range place {
             placeDetails[k] = v
         }
+
+        placeDetails["Category"] = categoria
+        placeDetails["City"] = city
+        placeDetails["Radius"] = radius
     
-        // Publish to RabbitMQ
+        
         err = publishLeadToRabbitMQ(ch, placeDetails)
         if err != nil {
             log.Printf("Failed to publish lead to RabbitMQ: %v", err)

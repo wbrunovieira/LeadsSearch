@@ -161,6 +161,7 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 		SetQueryParams(map[string]string{
 			"place_id": placeID,
 			"key":      s.APIKey,
+			"fields":   "name,formatted_address,international_phone_number,website,rating,address_components,editorial_summary",
 		}).
 		Get(url)
 
@@ -176,6 +177,14 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 				InternationalPhoneNumber string `json:"international_phone_number"`
 				Website     string `json:"website"`
 				Rating      float64 `json:"rating"`
+				AddressComponents         []struct {
+                    LongName  string   `json:"long_name"`
+                    ShortName string   `json:"short_name"`
+                    Types     []string `json:"types"`
+                } `json:"address_components"`
+				EditorialSummary struct {
+                    Overview string `json:"overview"`
+                } `json:"editorial_summary"`
 				
 			} `json:"result"`
 			Status       string `json:"status"`
@@ -191,12 +200,43 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
 		}
 
+		var city, state, zipCode, country string
+        for _, component := range result.Result.AddressComponents {
+            for _, ctype := range component.Types {
+                switch ctype {
+                case "locality":
+                    city = component.LongName
+                case "administrative_area_level_1":
+                    state = component.ShortName
+                case "postal_code":
+                    zipCode = component.LongName
+                case "country":
+                    country = component.LongName
+                }
+            }
+        }
+
+		var description string
+        if result.Result.EditorialSummary.Overview != "" {
+            
+            description = fmt.Sprintf("(Google Places: %s)", result.Result.EditorialSummary.Overview)
+        }
+
+
+
+
 		return map[string]interface{}{
 			"Name":                      result.Result.Name,
 			"FormattedAddress":          result.Result.FormattedAddress,
 			"InternationalPhoneNumber":  result.Result.InternationalPhoneNumber,
 			"Website":                   result.Result.Website,
 			"Rating":                    result.Result.Rating,
+			"City":                      city,
+            "State":                     state,
+            "ZIPCode":                   zipCode,
+			"Country":                  country,
+            "PlaceID":                   placeID,
+			"Description":              description,
 			
 			
 		}, nil

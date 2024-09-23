@@ -2,12 +2,13 @@ package main
 
 import (
 	"api/db"
+	"strings"
 
 	"encoding/json"
 	"fmt"
 	"log"
-	"github.com/google/uuid"
 
+	"github.com/google/uuid"
 
 	"net/http"
 	"os"
@@ -127,11 +128,39 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     if v, ok := data["FormattedAddress"].(string); ok {
         lead.Address = v
     }
+	if v, ok := data["City"].(string); ok {
+        lead.City = v
+    }
+    if v, ok := data["State"].(string); ok {
+        lead.State = v
+    }
+    if v, ok := data["ZIPCode"].(string); ok {
+        lead.ZIPCode = v
+    }
+
+	if v, ok := data["Country"].(string); ok {
+        lead.Country = v
+    }
+
     if v, ok := data["InternationalPhoneNumber"].(string); ok {
         lead.Phone = v
     }
     if v, ok := data["Website"].(string); ok {
         lead.Website = v
+        
+        if strings.HasPrefix(lead.Website, "https://www.instagram.com") {
+            lead.Instagram = lead.Website
+            lead.Website = ""
+        }
+    }
+
+	if v, ok := data["Description"].(string); ok {
+        if lead.Description != "" {
+           
+            lead.Description = fmt.Sprintf("%s\n%s", lead.Description, v)
+        } else {
+            lead.Description = v
+        }
     }
     if v, ok := data["Rating"].(float64); ok {
         lead.Rating = v
@@ -159,8 +188,19 @@ func saveLeadToDatabase(data map[string]interface{}) error {
             log.Printf("Error marshalling types: %v", err)
         }
     }
+	if category, ok := data["Category"].(string); ok {
+        if city, ok := data["City"].(string); ok {
+            radius := data["Radius"]
+            lead.SearchTerm = fmt.Sprintf("%s, %s, %v", category, city, radius)
+        }
+    }
+	if v, ok := data["PlaceID"].(string); ok {
+        lead.GoogleId = v
+    }
 
-    // Save lead to the database
+	lead.Source = "GooglePlaces"
+
+ 
     err := db.CreateLead(&lead)
     if err != nil {
         return fmt.Errorf("Failed to save lead to database: %v", err)
