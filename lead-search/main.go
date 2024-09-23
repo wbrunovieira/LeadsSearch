@@ -50,7 +50,7 @@ func main() {
     if err != nil {
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }
-    maxPages := 3
+    maxPages := 1
     placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius, maxPages)
     if err != nil {
         log.Fatalf("Failed to search places: %v", err)
@@ -83,20 +83,23 @@ func main() {
    
 }
 func publishLeadToRabbitMQ(ch *amqp.Channel, leadData map[string]interface{}) error {
-    queueName := "leads_queue"
-    // Declare the queue
-    q, err := ch.QueueDeclare(
-        queueName,
-        false,
-        false,
-        false,
-        false,
-        nil,
+    exchangeName := "leads_exchange"
+
+   
+
+    err := ch.ExchangeDeclare(
+        exchangeName, // nome do exchange
+        "fanout",     // tipo
+        true,         // durável
+        false,        // auto-deletar
+        false,        // interno
+        false,        // sem espera
+        nil,          // argumentos
     )
     if err != nil {
-        return fmt.Errorf("Failed to declare a queue: %v", err)
+        return fmt.Errorf("Failed to declare exchange: %v", err)
     }
-
+  
     // Serialize lead data
     body, err := json.Marshal(leadData)
     if err != nil {
@@ -105,8 +108,8 @@ func publishLeadToRabbitMQ(ch *amqp.Channel, leadData map[string]interface{}) er
 
     // Publish the message
     err = ch.Publish(
+        exchangeName,
         "",
-        q.Name,
         false,
         false,
         amqp.Publishing{

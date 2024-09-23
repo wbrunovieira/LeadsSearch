@@ -79,9 +79,28 @@ services:
         build: ./ai_service
         volumes:
             - ./ai:/app/src
-            - ./proto:/app/proto
+           
         depends_on:
             - db
+        command: ["python", "main.py"]
+        networks:
+            - leads-network
+
+    scrapper:
+        build: ./scrapper
+        volumes:
+            - ./scrapper:/app/src
+        environment:
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
         command: ["python", "main.py"]
         networks:
             - leads-network

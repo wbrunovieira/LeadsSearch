@@ -67,11 +67,25 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
 }
 
 func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
+	exchangeName := "leads_exchange"
     queueName := "leads_queue"
+
+	err := ch.ExchangeDeclare(
+        exchangeName, 
+        "fanout",     
+        true,         
+        false,        
+        false,        
+        false,        
+        nil,          
+    )
+    if err != nil {
+        log.Fatalf("Failed to declare exchange: %v", err)
+    }
 
   q, err := ch.QueueDeclare(
         queueName,
-        false, // Durable
+        true, // Durable
         false, // Delete when unused
         false, // Exclusive
         false, // No-wait
@@ -80,6 +94,18 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
     if err != nil {
         log.Fatalf("Failed to register a consumer: %v", err)
     }
+
+	err = ch.QueueBind(
+        q.Name,        
+        "",            
+        exchangeName,  
+        false,
+        nil,
+    )
+    if err != nil {
+        log.Fatalf("Failed to bind queue to exchange: %v", err)
+    }
+
 
  msgs, err := ch.Consume(
         q.Name,

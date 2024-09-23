@@ -217,7 +217,7 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
 		}
 		
-		var city, state, zipCode, country string
+		var city, state, zipCode, country, route, neighborhood, streetNumber string
         for _, component := range result.Result.AddressComponents {
             for _, ctype := range component.Types {
                 switch ctype {
@@ -229,25 +229,29 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
                     zipCode = component.LongName
                 case "country":
                     country = component.LongName
+                case "street_number":
+                    streetNumber = component.LongName
+                case "route":
+                    route = component.LongName
+                case "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2", "administrative_area_level_2":
+                    if neighborhood == "" {
+                        neighborhood = component.LongName
+                    }
+
                 }
             }
         }
 
 		addressParts := []string{}
-        for _, component := range result.Result.AddressComponents {
-            includeInAddress := false
-            for _, ctype := range component.Types {
-                switch ctype {
-                case "street_number", "route", "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2":
-                    includeInAddress = true
-                    break
-                }
-            }
-            if includeInAddress {
-                addressParts = append(addressParts, component.LongName)
-            }
+        if route != "" {
+            addressParts = append(addressParts, route)
         }
-
+        if streetNumber != "" {
+            addressParts = append(addressParts, streetNumber)
+        }
+        if neighborhood != "" {
+            addressParts = append(addressParts, neighborhood)
+        }
         address := strings.Join(addressParts, ", ")
 
 		var description string
