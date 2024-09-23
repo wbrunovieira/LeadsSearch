@@ -50,8 +50,8 @@ func main() {
     if err != nil {
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }
-
-    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius)
+    maxPages := 3
+    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius, maxPages)
     if err != nil {
         log.Fatalf("Failed to search places: %v", err)
     }

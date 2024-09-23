@@ -103,7 +103,7 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
                 continue
             }
 
-            // Save lead to database
+       
             err = saveLeadToDatabase(leadData)
             if err != nil {
                 log.Printf("Failed to save lead: %v", err)
@@ -125,9 +125,13 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     if v, ok := data["Name"].(string); ok {
         lead.BusinessName = v
     }
-    if v, ok := data["FormattedAddress"].(string); ok {
-        lead.Address = v
-    }
+	if v, ok := data["FormattedAddress"].(string); ok {
+		lead.Address = v
+		if lead.Address == "" {
+			log.Printf("Aviso: Endereço vazio para o PlaceID %s", data["PlaceID"])
+		}
+	}
+
 	if v, ok := data["City"].(string); ok {
         lead.City = v
     }
@@ -180,14 +184,16 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     if v, ok := data["PermanentlyClosed"].(bool); ok {
         lead.PermanentlyClosed = v
     }
-    if v, ok := data["Types"].([]interface{}); ok {
-        typesBytes, err := json.Marshal(v)
-        if err == nil {
-            lead.Types = string(typesBytes)
-        } else {
-            log.Printf("Error marshalling types: %v", err)
-        }
-    }
+	if v, ok := data["Types"].([]interface{}); ok {
+		var types []string
+		for _, t := range v {
+			if typeStr, ok := t.(string); ok {
+				types = append(types, typeStr)
+			}
+		}
+		lead.Categories = strings.Join(types, ", ")
+	}
+	
 	if category, ok := data["Category"].(string); ok {
         if city, ok := data["City"].(string); ok {
             radius := data["Radius"]

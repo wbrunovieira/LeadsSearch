@@ -27,6 +27,7 @@ type Lead struct {
 	Facebook          	 string  `gorm:"type:text"`
 	TikTok          	 string  `gorm:"type:text"`
 	CompanyRegistrationID          	 string  `gorm:"type:text"`
+	Categories string `gorm:"type:text"`
 	Rating           float64 `gorm:"type:numeric"`
 	PriceLevel int `gorm:"default:0"`
 	UserRatingsTotal           int     `gorm:"default:0"`

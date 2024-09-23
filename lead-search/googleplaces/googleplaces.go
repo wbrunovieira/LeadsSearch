@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -11,6 +13,25 @@ import (
 type Service struct {
 	APIKey string
 }
+
+
+
+type PlaceResult struct {
+    Name             string    `json:"name"`
+    
+    FormattedAddress string    `json:"formatted_address"`
+    PlaceID          string    `json:"place_id"`
+    Rating           float64   `json:"rating"`
+    UserRatingsTotal int       `json:"user_ratings_total"`
+    PriceLevel       int       `json:"price_level"`
+    BusinessStatus   string    `json:"business_status"`
+    Vicinity         string    `json:"vicinity"`
+    PermanentlyClosed bool     `json:"permanently_closed"`
+    Types            []string  `json:"types"`
+ 
+}
+
+
 
 func NewService(apiKey string) *Service {
 	return &Service{APIKey: apiKey}
@@ -64,93 +85,89 @@ func (s *Service) GeocodeCity(city string) (string, error) {
 	return "", fmt.Errorf("no results found for city: %s", city)
 }
 
-func (s *Service) SearchPlaces(query string, location string, radius int) ([]map[string]interface{}, error) {
 
-	client := resty.New()
 
-	url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
-	resp, err := client.R().
-		SetQueryParams(map[string]string{
-			"query":    query,
-			"location": location,
-			"radius":   fmt.Sprintf("%d", radius),
-			"key":      s.APIKey,
-		}).
-		Get(url)
-		
+func (s *Service) SearchPlaces(query string, location string, radius int, maxPages int) ([]map[string]interface{}, error) {
+    client := resty.New()
+    url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
-	if err != nil {
-		return nil, fmt.Errorf("error connecting to Google Places API: %v", err)
-	}
+    var allPlaces []map[string]interface{}
+    pageToken := ""
+    pagesFetched := 0
+	totalResults := 0
 
-	if resp.IsSuccess() {
-		var result struct {
-			Results []struct {
-				Name             string  `json:"name"`
-				Address          string  `json:"formatted_address"`
-				PlaceID          string  `json:"place_id"`
-				Rating           float64 `json:"rating"`
-				UserRatingsTotal int     `json:"user_ratings_total"`
-				PriceLevel       int     `json:"price_level"`
-				BusinessStatus   string  `json:"business_status"`
-				OpeningHours     struct {
-					OpenNow bool `json:"open_now"`
-				} `json:"opening_hours"`
-				Photos []struct {
-					PhotoReference   string   `json:"photo_reference"`
-					Height           int      `json:"height"`
-					Width            int      `json:"width"`
-					HtmlAttributions []string `json:"html_attributions"`
-				} `json:"photos"`
-				Geometry struct {
-					Location struct {
-						Lat float64 `json:"lat"`
-						Lng float64 `json:"lng"`
-					} `json:"location"`
-				} `json:"geometry"`
-				Icon              string   `json:"icon"`
-				Vicinity          string   `json:"vicinity"`
-				PermanentlyClosed bool     `json:"permanently_closed"`
-				Types             []string `json:"types"`
-				PlusCode          struct {
-					CompoundCode string `json:"compound_code"`
-					GlobalCode   string `json:"global_code"`
-				} `json:"plus_code"`
-			} `json:"results"`
-			Status       string `json:"status"`
-			ErrorMessage string `json:"error_message"`
-		}
+    for {
+        params := map[string]string{
+            "query":    query,
+            "location": location,
+            "radius":   fmt.Sprintf("%d", radius),
+            "key":      s.APIKey,
+        }
+        if pageToken != "" {
+            params["pagetoken"] = pageToken
+        }
 
-		err := json.Unmarshal(resp.Body(), &result)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing response: %v", err)
-		}
+        resp, err := client.R().
+            SetQueryParams(params).
+            Get(url)
 
-		if result.Status != "OK" {
-			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
-		}
+        if err != nil {
+            return nil, fmt.Errorf("error connecting to Google Places API: %v", err)
+        }
 
-		places := []map[string]interface{}{}
-		for _, place := range result.Results {
-			placeDetails := map[string]interface{}{
-				"Name":              place.Name,
-				"FormattedAddress":  place.Address,
-				"PlaceID":           place.PlaceID,
-				"Rating":            place.Rating,
-				"UserRatingsTotal":   place.UserRatingsTotal,
-				"PriceLevel":        place.PriceLevel,
-				"BusinessStatus":    place.BusinessStatus,
-				"Vicinity":          place.Vicinity,
-				"PermanentlyClosed": place.PermanentlyClosed,
-				"Types":             place.Types,
-			}
-			places = append(places, placeDetails)
-		}
-		return places, nil
-	} else {
-		return nil, fmt.Errorf("failed to get data: %v", resp.Status())
-	}
+        if resp.IsSuccess() {
+            var result struct {
+                Results           []PlaceResult `json:"results"`
+                Status            string        `json:"status"`
+                ErrorMessage      string        `json:"error_message"`
+                NextPageToken     string        `json:"next_page_token"`
+            }
+
+            err := json.Unmarshal(resp.Body(), &result)
+            if err != nil {
+                return nil, fmt.Errorf("error parsing response: %v", err)
+            }
+
+            if result.Status != "OK" && result.Status != "ZERO_RESULTS" {
+                return nil, fmt.Errorf("API error: %s, message: %s", result.Status, result.ErrorMessage)
+            }
+
+            for _, place := range result.Results {
+                placeDetails := map[string]interface{}{
+                    "Name":              place.Name,
+                    "FormattedAddress":  place.FormattedAddress,
+                    "PlaceID":           place.PlaceID,
+                    "Rating":            place.Rating,
+                    "UserRatingsTotal":  place.UserRatingsTotal,
+                    "PriceLevel":        place.PriceLevel,
+                    "BusinessStatus":    place.BusinessStatus,
+                    "Vicinity":          place.Vicinity,
+                    "PermanentlyClosed": place.PermanentlyClosed,
+                    "Types":             place.Types,
+                }
+                allPlaces = append(allPlaces, placeDetails)
+            }
+
+			totalResults += len(result.Results)
+            pagesFetched++
+			
+			log.Printf("Página %d obtida, total de resultados até agora: %d", pagesFetched, totalResults)
+            if result.NextPageToken == "" || pagesFetched >= maxPages {
+                break
+            }
+
+            
+            time.Sleep(2 * time.Second)
+            pageToken = result.NextPageToken
+        } else {
+            return nil, fmt.Errorf("failed to get data: %v", resp.Status())
+        }
+    }
+
+	log.Printf("Total de resultados obtidos: %d", totalResults)
+    return allPlaces, nil
 }
+
 
 
 func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error) {
@@ -199,7 +216,7 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
 		if result.Status != "OK" {
 			return nil, fmt.Errorf("error from API: %s, message: %s", result.Status, result.ErrorMessage)
 		}
-
+		
 		var city, state, zipCode, country string
         for _, component := range result.Result.AddressComponents {
             for _, ctype := range component.Types {
@@ -216,6 +233,23 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
             }
         }
 
+		addressParts := []string{}
+        for _, component := range result.Result.AddressComponents {
+            includeInAddress := false
+            for _, ctype := range component.Types {
+                switch ctype {
+                case "street_number", "route", "neighborhood", "sublocality", "sublocality_level_1", "sublocality_level_2":
+                    includeInAddress = true
+                    break
+                }
+            }
+            if includeInAddress {
+                addressParts = append(addressParts, component.LongName)
+            }
+        }
+
+        address := strings.Join(addressParts, ", ")
+
 		var description string
         if result.Result.EditorialSummary.Overview != "" {
             
@@ -223,11 +257,12 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
         }
 
 
+		log.Printf("Address components included: %v", addressParts)
 
 
 		return map[string]interface{}{
 			"Name":                      result.Result.Name,
-			"FormattedAddress":          result.Result.FormattedAddress,
+			"FormattedAddress":          address,
 			"InternationalPhoneNumber":  result.Result.InternationalPhoneNumber,
 			"Website":                   result.Result.Website,
 			"Rating":                    result.Result.Rating,
