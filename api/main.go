@@ -2,100 +2,24 @@ package main
 
 import (
 	"api/db"
-	"context"
-	"database/sql"
+
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
+	"github.com/google/uuid"
+
+
 	"net/http"
 	"os"
 
 	"github.com/streadway/amqp"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
-	"github.com/wbrunovieira/ProtoDefinitionsLeadsSearch/leadpb"
 
 	"time"
 )
 
-type LeadServer struct {
-	leadpb.UnimplementedLeadServiceServer
-	channel *amqp.Channel
-}
 
-func (s *LeadServer) SendLead(ctx context.Context, req *leadpb.LeadRequest) (*leadpb.LeadResponse, error) {
 
-	log.Printf("Recebendo lead: %v", req)
 
-	lead := db.Lead{
-		BusinessName: req.GetBusinessName(),
-		RegisteredName: req.GetRegisteredName(),
-		Address: req.GetAddress(),
-		City: req.GetCity(),
-		State: req.GetState(),
-		Country: req.GetCountry(),
-		ZIPCode: req.GetZipCode(),
-		Owner: req.GetOwner(),
-		Phone: req.GetPhone(),
-		Whatsapp: req.GetWhatsapp(),
-		Website: req.GetWebsite(),
-		Email: req.GetEmail(),
-		Instagram: req.GetInstagram(),
-		Facebook: req.GetFacebook(),
-		TikTok: req.GetTiktok(),
-		CompanyRegistrationID: req.GetCompanyRegistrationId(),
-		Rating: float64(req.GetRating()),
-		PriceLevel: float64(req.GetPriceLevel()),
-		UserRatingsTotal: int(req.GetUserRatingsTotal()),
-	}
-
-	if req.GetFoundationDate() == "" {
-		lead.FoundationDate = sql.NullTime{Valid: false}
-		log.Println("Data de fundação não fornecida.")
-	} else {
-		parsedDate, err := time.Parse("2006-01-02", req.GetFoundationDate())
-		if err != nil {
-			return nil, fmt.Errorf("data inválida: %v", err)
-		}
-		lead.FoundationDate = sql.NullTime{Time: parsedDate, Valid: true}
-		log.Printf("Data de fundação parseada: %v", parsedDate)
-	}
-
-	
-	err := db.CreateLead(&lead)
-	if err != nil {
-		log.Printf("Erro ao salvar o lead no banco de dados: %v", err)
-		return nil, fmt.Errorf("failed to save lead: %v", err)
-	}
-
-	leadData, err := json.Marshal(req)
-    if err != nil {
-		log.Printf("Erro ao converter o lead para JSON: %v", err)
-        return nil, fmt.Errorf("failed to marshal lead: %v", err)
-    }
-
-	err = s.channel.Publish(
-        "",                     // Exchange
-        "leads_queue",          // Routing key
-        false,                  // Mandatory
-        false,                  // Immediate
-        amqp.Publishing{
-            ContentType: "application/json",
-            Body:        leadData,
-        },
-    )
-    if err != nil {
-		log.Printf("Erro ao publicar o lead no RabbitMQ: %v", err)
-        return nil, fmt.Errorf("failed to publish lead to RabbitMQ: %v", err)
-    }
-
-	return &leadpb.LeadResponse{
-		Message: "Lead salvo com sucesso!",
-		Success: true,
-	}, nil
-}
 
 
 func leadHandler(w http.ResponseWriter, r *http.Request) {
@@ -116,83 +40,6 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Lead salvo com sucesso!")
 
 
-}
-
-func startGrpcServer(channel *amqp.Channel) {
-	log.Println("chamou a startGrpcServer")
-
-	grpcServer := grpc.NewServer()
-	log.Println("Iniciando servidor gRPC na porta 8090...")
-	leadServer := &LeadServer{channel: channel}
-	log.Println("Registrando o serviço LeadService no servidor gRPC...")
-	leadpb.RegisterLeadServiceServer(grpcServer, leadServer)
-	log.Println("Serviço LeadService registrado com sucesso.")
-	reflection.Register(grpcServer)
-
-	listener, err := net.Listen("tcp", ":8090")
-	
-	if err != nil {
-		log.Fatalf("Falha ao iniciar o listener: %v", err)
-	}
-
-
-	log.Println("gRPC server is running on port 8090...")
-
-	if err := grpcServer.Serve(listener); err != nil {
-		log.Fatalf("Failed to serve gRPC server: %v", err)
-	}
-}
-
-
-func consumeLeadsFromRabbitMQ(channel *amqp.Channel) {
-
-	q, err := channel.QueueDeclare(
-		"leads_queue", 
-		false,         
-		false,         
-		false,         
-		false,         
-		nil,           
-	)
- 
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	
-	msgs, err := channel.Consume(
-		q.Name, 
-		"",     
-		true,   
-		false,  
-		false,  
-		false,  
-		nil,    
-	)
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
-
-	forever := make(chan bool)
-
-	go func() {
-		for d := range msgs {
-			log.Printf("Received a message from RabbitMQ: %s", d.Body)
-
-			
-			var lead leadpb.LeadRequest
-			err := json.Unmarshal(d.Body, &lead)
-			if err != nil {
-				log.Printf("Failed to unmarshal lead data: %v", err)
-				continue
-			}
-
-		
-			log.Printf("Processing lead from RabbitMQ: %+v", lead)
-		}
-	}()
-
-	log.Printf(" [*] Waiting for messages from RabbitMQ. To exit press CTRL+C")
-	<-forever
 }
 
 func connectToRabbitMQ() (*amqp.Connection, error) {
@@ -218,9 +65,114 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
     return nil, fmt.Errorf("failed to connect to RabbitMQ at %s:%s after 5 retries: %v", rabbitmqHost, rabbitmqPort, err)
 }
 
+func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
+    queueName := "leads_queue"
+
+  q, err := ch.QueueDeclare(
+        queueName,
+        false, // Durable
+        false, // Delete when unused
+        false, // Exclusive
+        false, // No-wait
+        nil,   // Arguments
+    )
+    if err != nil {
+        log.Fatalf("Failed to register a consumer: %v", err)
+    }
+
+ msgs, err := ch.Consume(
+        q.Name,
+        "",
+        true,  // Auto-acknowledge
+        false, // Exclusive
+        false, // No-local
+        false, // No-wait
+        nil,   // Arguments
+    )
+    if err != nil {
+        log.Fatalf("Failed to register a consumer: %v", err)
+    }
+
+    go func() {
+        for d := range msgs {
+            var leadData map[string]interface{}
+            err := json.Unmarshal(d.Body, &leadData)
+            if err != nil {
+                log.Printf("Error decoding JSON: %v", err)
+                continue
+            }
+
+            // Save lead to database
+            err = saveLeadToDatabase(leadData)
+            if err != nil {
+                log.Printf("Failed to save lead: %v", err)
+            }
+        }
+    }()
+
+    log.Println("Consuming leads from RabbitMQ...")
+    select {} // Block forever
+}
+
+func saveLeadToDatabase(data map[string]interface{}) error {
+    lead := db.Lead{}
+
+	if lead.ID == uuid.Nil {
+        lead.ID = uuid.New()
+    }
+
+    if v, ok := data["Name"].(string); ok {
+        lead.BusinessName = v
+    }
+    if v, ok := data["FormattedAddress"].(string); ok {
+        lead.Address = v
+    }
+    if v, ok := data["InternationalPhoneNumber"].(string); ok {
+        lead.Phone = v
+    }
+    if v, ok := data["Website"].(string); ok {
+        lead.Website = v
+    }
+    if v, ok := data["Rating"].(float64); ok {
+        lead.Rating = v
+    }
+    if v, ok := data["UserRatingsTotal"].(float64); ok {
+        lead.UserRatingsTotal = int(v)
+    }
+    if v, ok := data["PriceLevel"].(float64); ok {
+        lead.PriceLevel = int(v)
+    }
+    if v, ok := data["BusinessStatus"].(string); ok {
+        lead.BusinessStatus = v
+    }
+    if v, ok := data["Vicinity"].(string); ok {
+        lead.Vicinity = v
+    }
+    if v, ok := data["PermanentlyClosed"].(bool); ok {
+        lead.PermanentlyClosed = v
+    }
+    if v, ok := data["Types"].([]interface{}); ok {
+        typesBytes, err := json.Marshal(v)
+        if err == nil {
+            lead.Types = string(typesBytes)
+        } else {
+            log.Printf("Error marshalling types: %v", err)
+        }
+    }
+
+    // Save lead to the database
+    err := db.CreateLead(&lead)
+    if err != nil {
+        return fmt.Errorf("Failed to save lead to database: %v", err)
+    }
+
+    log.Printf("Lead saved to database: %v", lead)
+    return nil
+}
+
 func main() {
 
-	log.Println("comecou")
+	log.Println("Starting API service...")
 
 	conn, err := connectToRabbitMQ()
 	if err != nil {
@@ -233,7 +185,6 @@ func main() {
 	}()
 
 	channel, err := conn.Channel()
-
 	if err != nil {
 		log.Fatalf("Failed to open a RabbitMQ channel: %v", err)
 	}
@@ -243,23 +194,22 @@ defer func() {
     channel.Close()
 }()
 
-log.Println("Starting gRPC server... esse aqui")
-	go startGrpcServer(channel)
 
 	log.Println("Starting to consume leads from RabbitMQ...")
-	go consumeLeadsFromRabbitMQ(channel)
+	
 	
 	log.Println("Connecting to the database...")
 	db.Connect()
-	defer db.Close()
 
+	defer db.Close()
+	db.Migrate(db.DB)
 	
-	db.Migrate()
 
 	
 	http.HandleFunc("/leads", leadHandler)
 
-	
+	consumeLeadsFromRabbitMQ(channel)
+
 	port := os.Getenv("PORT")
 
 	fmt.Println("API rodando na porta", port)

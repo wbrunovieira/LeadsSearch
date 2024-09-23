@@ -55,16 +55,16 @@ func connectDB() {
 
 		
 // 		lead.FieldsFilled = 0
-// 		if lead.Name != "" {
+// 		if lead.Name !=  {
 // 			lead.FieldsFilled++
 // 		}
-// 		if lead.Address != "" {
+// 		if lead.Address !=  {
 // 			lead.FieldsFilled++
 // 		}
-// 		if lead.Phone != "" {
+// 		if lead.Phone !=  {
 // 			lead.FieldsFilled++
 // 		}
-// 		if lead.Website != "" {
+// 		if lead.Website !=  {
 // 			lead.FieldsFilled++
 // 		}
 

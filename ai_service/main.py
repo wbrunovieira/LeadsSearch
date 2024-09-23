@@ -2,10 +2,10 @@ import psycopg2
 import time
 
 def main():
-    """
+    "
     Placeholder for future functionality. Currently, the service connects to the database
     but does not perform any operations.
-    """
+    "
     try:
         conn = psycopg2.connect(
             dbname="leadsdb",

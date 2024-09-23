@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,11 +12,12 @@ import (
 
 	"github.com/streadway/amqp"
 
-	"github.com/joho/godotenv"
-	"github.com/wbrunovieira/ProtoDefinitionsLeadsSearch/leadpb"
-	"google.golang.org/grpc"
+	
 
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/joho/godotenv"
+	
+
+	
 )
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 
     apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 
-    if apiKey == "" {
+    if apiKey ==  "" {
         log.Fatal("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
     }
 
@@ -61,36 +62,72 @@ func main() {
 
     for _, place := range placeDetailsFromSearch {
         placeID := place["PlaceID"].(string)
-        placeDetailsFromDetails, err := service.GetPlaceDetails(placeID)
+        placeDetails, err := service.GetPlaceDetails(placeID)
         if err != nil {
             log.Printf("Failed to get details for place ID %s: %v", placeID, err)
             continue
+
         }
 
-       
-        err = sendLeadViaGrpc(placeDetailsFromDetails)
-
+        for k, v := range place {
+            placeDetails[k] = v
+        }
+    
+        // Publish to RabbitMQ
+        err = publishLeadToRabbitMQ(ch, placeDetails)
         if err != nil {
-            log.Printf("gRPC failed, sending to RabbitMQ: %v", err)
-            err = sendLeadToRabbitMQ(ch,placeDetailsFromDetails)
-            if err != nil {
-				log.Printf("Failed to send to RabbitMQ: %v", err)
-			}
+            log.Printf("Failed to publish lead to RabbitMQ: %v", err)
         }
     }
-
-   
-
-
-
+    
    
 }
+func publishLeadToRabbitMQ(ch *amqp.Channel, leadData map[string]interface{}) error {
+    queueName := "leads_queue"
+    // Declare the queue
+    q, err := ch.QueueDeclare(
+        queueName,
+        false,
+        false,
+        false,
+        false,
+        nil,
+    )
+    if err != nil {
+        return fmt.Errorf("Failed to declare a queue: %v", err)
+    }
+
+    // Serialize lead data
+    body, err := json.Marshal(leadData)
+    if err != nil {
+        return fmt.Errorf("Failed to serialize lead data: %v", err)
+    }
+
+    // Publish the message
+    err = ch.Publish(
+        "",
+        q.Name,
+        false,
+        false,
+        amqp.Publishing{
+            ContentType: "application/json",
+            Body:        body,
+        },
+    )
+    if err != nil {
+        return fmt.Errorf("Failed to publish a message: %v", err)
+    }
+
+    log.Printf("Lead published to RabbitMQ: %s", body)
+    return nil
+}
+
 
 func connectToRabbitMQ() (*amqp.Connection, error) {
     log.Println("Conectando ao RabbitMQ...")
     rabbitmqHost := os.Getenv("RABBITMQ_HOST")
     rabbitmqPort := os.Getenv("RABBITMQ_PORT")
-    if rabbitmqHost == "" || rabbitmqPort == "" {
+    if rabbitmqHost ==  "" || rabbitmqPort == ""{
         return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
     }
     log.Printf("Conectado ao RabbitMQ em %s:%s", rabbitmqHost, rabbitmqPort)
@@ -111,117 +148,6 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
     return nil, fmt.Errorf("failed to connect to RabbitMQ at %s:%s after 5 retries: %v", rabbitmqHost, rabbitmqPort, err)
 }
 
-func sendLeadViaGrpc(details map[string]interface{})error  {
-    log.Println("Enviando lead via gRPC...")
-
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-
-     conn, err := grpc.DialContext(ctx, "api:8090", grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-    if err != nil {
-        log.Fatalf("Failed to connect to API service: %v", err)
-    }
-    defer conn.Close()
-
-    client := leadpb.NewLeadServiceClient(conn)
-    log.Println("Cliente gRPC criado com sucesso.")
-
-    businessName, ok := details["Name"].(string)
-    if !ok {
-        businessName = "" 
-    }
-
-    registeredName := businessName 
-    log.Printf("Enviando lead: %v", details)
-
-    address, ok := details["FormattedAddress"].(string)
-    if !ok {
-        address = ""
-    }
-
-    zipcode, ok := details["ZIPCode"].(string)
-    if !ok {
-        zipcode = ""
-    }
-
-    phone, ok := details["InternationalPhoneNumber"].(string)
-    if !ok {
-        phone = ""
-    }
-
-    website, ok := details["Website"].(string)
-    if !ok {
-        website = ""
-    }
-
-    email, ok := details["Email"].(string)
-    if !ok {
-        email = ""
-    }
-
-    instagram, ok := details["Instagram"].(string)
-    if !ok {
-        instagram = ""
-    }
-
-    facebook, ok := details["Facebook"].(string)
-    if !ok {
-        facebook = ""
-    }
-
-    rating, ok := details["Rating"].(float64)
-    if !ok {
-        rating = 0.0
-    }
-
-    priceLevel, ok := details["PriceLevel"].(float64)
-    if !ok {
-        priceLevel = 0.0
-    }
-
-    userRatingsTotal, ok := details["UserRatingsTotal"].(int)
-    if !ok {
-        userRatingsTotal = 0
-    }
-
-    req := &leadpb.LeadRequest{
-        BusinessName:         businessName,
-        RegisteredName:       registeredName,
-        Address:              address,
-        City:                 "Osasco", 
-        State:                "SP",
-        Country:              "Brazil",
-        ZipCode:              zipcode,
-        Owner:                "", 
-        Phone:                phone,
-        Whatsapp:             "",
-        Website:              website,
-        Email:                email,
-        Instagram:            instagram,
-        Facebook:             facebook,
-        Tiktok:               "", 
-        CompanyRegistrationId: "", 
-        Rating:               float32(rating), 
-        PriceLevel:           float32(priceLevel),
-        UserRatingsTotal:      int32(userRatingsTotal),
-        FoundationDate:       "", 
-        Source:               "Google Places", 
-
-    }
-
-
-    res, err := client.ReceiveLead(ctx, req)
-    
-    if err != nil {
-        log.Fatalf("Error while sending lead: %v", err)
-    }
-
-    fmt.Printf("Response from API: %s\n", res.GetMessage())
-    log.Printf("Resposta da API gRPC: %s", res.GetMessage())
-
-    return nil
-}
 
 
 func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error {
@@ -244,7 +170,7 @@ func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error 
     }
 
     err = ch.Publish(
-        "",     
+        "" ,     
         q.Name, 
         false,  
         false,  

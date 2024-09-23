@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"log"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -19,6 +20,7 @@ func Connect() {
 	}
 	fmt.Println("Conexão com o banco de dados bem-sucedida.")
 }
+
 
 
 func Close() {

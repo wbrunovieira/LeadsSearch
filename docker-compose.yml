@@ -4,15 +4,17 @@ services:
     api:
         build: ./api
         ports:
-             - "8085:8085"  
-             - "8090:8090"
+            - "8085:8085"
+
         environment:
             - RABBITMQ_HOST=rabbitmq
             - RABBITMQ_PORT=5672
-            - PORT=8085 
+            - PORT=8085
 
         depends_on:
             rabbitmq:
+                condition: service_healthy
+            db:
                 condition: service_healthy
 
         healthcheck:
@@ -62,6 +64,7 @@ services:
             POSTGRES_PASSWORD: postgres
         volumes:
             - postgres_data:/var/lib/postgresql/data
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
         ports:
             - "5432:5432"
         healthcheck:
