@@ -79,7 +79,7 @@ services:
         build: ./ai_service
         volumes:
             - ./ai:/app/src
-           
+
         depends_on:
             - db
         command: ["python", "main.py"]
@@ -88,8 +88,6 @@ services:
 
     scrapper:
         build: ./scrapper
-        volumes:
-            - ./scrapper:/app/src
         environment:
             - RABBITMQ_HOST=rabbitmq
             - RABBITMQ_PORT=5672
@@ -101,7 +99,7 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-        command: ["python", "main.py"]
+
         networks:
             - leads-network
 
