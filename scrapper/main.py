@@ -4,12 +4,18 @@ import json
 import random
 # pylint: disable=E0401
 import pika
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
+import requests
+import http.client 
+
+from dotenv import load_dotenv
 
 from bs4 import BeautifulSoup
+
 from urllib.parse import quote
+
+load_dotenv()
+
+
 
 def setup_rabbitmq():
     """Configura a conexão com o RabbitMQ."""
@@ -30,62 +36,52 @@ def setup_channel(connection):
     channel.queue_bind(exchange=exchange_name, queue=queue_name)
     return channel
 
-def setup_selenium():
-    """Configura o Selenium WebDriver."""
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--remote-debugging-port=9222')
+def sanitize_input(input_str):
+    """Remove caracteres especiais e espaços duplos, e prepara o input para ser usado na URL."""
+    sanitized_str = input_str.strip()  # Remove espaços extras nas extremidades
+    sanitized_str = ' '.join(sanitized_str.split())  # Remove espaços duplos ou mais
+    return sanitized_str
+
+def fetch_data_from_api(api_key, url):
+    """Faz uma requisição à API de scraping com a URL especificada."""
+    conn = http.client.HTTPSConnection("cheap-web-scarping-api.p.rapidapi.com")
+    headers = {
+        'x-rapidapi-key': api_key,
+        'x-rapidapi-host': "cheap-web-scarping-api.p.rapidapi.com"
+    }
     
-    driver = webdriver.Chrome(options=options)
-    return driver
-
-def parse_search_results(html_content, searched_city):
-    """Analisa os resultados de busca e filtra por cidade."""
-    soup = BeautifulSoup(html_content, 'html.parser')
-    results = []
-    for company in soup.find_all('div', class_='well search-result'):
-        name_element = company.find('a', class_='lnk')
-        city_element = company.find('span', class_='text-muted')
-        if name_element and city_element:
-            company_name = name_element.text.strip()
-            company_city = city_element.text.strip().split('/')[0]
-            if company_city.lower() == searched_city.lower():
-                status_element = company.find('span', class_='label label-success')
-                company_status = status_element.text.strip() if status_element else 'Inativa'
-                if company_status.lower() == 'ativa':
-                    cnpj = name_element['href'].split('/')[-1]
-                    results.append({'name': company_name, 'cnpj': cnpj})
-    return results
-
-def fetch_url_with_selenium(driver, url):
-    """Busca URL usando Selenium WebDriver e retorna o conteúdo HTML."""
-    driver.get(url)
-    time.sleep(random.uniform(1, 2))  # Aguarda o carregamento da página
-    return driver.page_source
-
-
-
-def parse_company_details(driver):
-    """Extrai detalhes da empresa diretamente com Selenium."""
-    company_info = {}
+    encoded_url = quote(url)
+    api_path = f"/scrape?url={encoded_url}"
     
+    conn.request("GET", api_path, headers=headers)
+    res = conn.getresponse()
+    data = res.read()
+
+    print(f"API Response: {data.decode('utf-8')}") 
+
+    return data.decode("utf-8")
+
+
+def parse_company_data(html_data):
+    """Analisa os dados HTML retornados pela API e extrai as informações da empresa."""
     try:
-        # Extrair o nome completo da empresa
-        name_element = driver.find_element(By.CSS_SELECTOR, 'h1.post-title.empresa-title')
-        company_info['full_name'] = name_element.text.strip()
+        # Carregar o conteúdo HTML no BeautifulSoup
+        soup = BeautifulSoup(html_data, 'html.parser')
 
-        # Extrair o CNPJ
-        cnpj_element = driver.find_element(By.XPATH, "//span[contains(text(), 'CNPJ:')]")
-        cnpj_value = cnpj_element.find_element(By.XPATH, "following-sibling::b").text.strip()
-        company_info['cnpj'] = cnpj_value
-
+        # Procurar pelo nome da empresa e CNPJ no HTML
+        company_name_tag = soup.find('p', {'class': 'text-lg font-medium text-blue-600'})
+        cnpj_tag = soup.find('p', {'class': 'text-sm text-gray-500'})
+        
+        if company_name_tag and cnpj_tag:
+            company_name = company_name_tag.get_text(strip=True)
+            company_cnpj = cnpj_tag.get_text(strip=True)
+            return {'name': company_name, 'cnpj': company_cnpj}
+        else:
+            print("Detalhes da empresa não encontrados no HTML")
+            return None
     except Exception as e:
-        print(f"Erro ao extrair detalhes da empresa: {e}")
-
-    return company_info
+        print(f"Erro ao processar HTML: {e}")
+        return None
 
 
 def callback(ch, method, properties, body):
@@ -96,35 +92,34 @@ def callback(ch, method, properties, body):
 
         name = lead_data.get('Name')
         city = lead_data.get('City')
+
+        sanitized_name = sanitize_input(name)
+        sanitized_city = sanitize_input(city)
         if isinstance(name, str) and isinstance(city, str) and name.strip() and city.strip():
-            print("Name para busca", name)
-            print("City para busca", city)
+            print(f"Buscando informações para: {name}, {city}")
             
-            # Configura o Selenium WebDriver
-            driver = setup_selenium()
-
-            search_url = f"https://cnpj.biz/procura/{quote(name)}%20{quote(city)}"
-            print("search_url", search_url)
-
-            html_content = fetch_url_with_selenium(driver, search_url)
-            search_results = parse_search_results(html_content, city)
-
-            for result in search_results:
-                cnpj = result['cnpj']
-                company_url = f"https://cnpj.biz/{cnpj}"
-                print("company_url", company_url)
-
-                company_html_content = fetch_url_with_selenium(driver, company_url)
-                company_details = parse_company_details(company_html_content)
-                print(f"Detalhes da Empresa: {company_details}")
+            # Monta a URL de busca para a API
+            api_key = os.getenv('RAPIDAPI_KEY')
+            search_url = f"https://cnpj.biz/procura/{quote(sanitized_name)}%20{quote(sanitized_city)}"
             
-            # Fecha o driver após o processamento
-            driver.quit()
+            print(f"Buscando na API a URL: {search_url}")
+            try:
+                response_data = fetch_data_from_api(api_key, search_url)
+                company_info = parse_company_data(response_data)
+            except Exception as e:
+                print(f"Erro ao buscar dados da API: {str(e)}")
+                company_info = None
+            
+            if company_info:
+                print(f"Detalhes da Empresa: {company_info}")
+            else:
+                print("Nenhuma informação de empresa encontrada.")
 
         else:
             print("Nome ou Cidade não encontrados no lead.")
     except json.JSONDecodeError as e:
         print(f"Erro ao decodificar JSON: {e}")
+
 
 def main():
     """Função principal para iniciar o serviço de scraping de leads."""
