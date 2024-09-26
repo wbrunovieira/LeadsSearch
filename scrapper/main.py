@@ -1,11 +1,14 @@
 import os
 import time
 import json
+import re
+
 import random
 # pylint: disable=E0401
 import pika
 import requests
 import http.client 
+from html import unescape
 
 from dotenv import load_dotenv
 
@@ -38,8 +41,8 @@ def setup_channel(connection):
 
 def sanitize_input(input_str):
     """Remove caracteres especiais e espaços duplos, e prepara o input para ser usado na URL."""
-    sanitized_str = input_str.strip()  # Remove espaços extras nas extremidades
-    sanitized_str = ' '.join(sanitized_str.split())  # Remove espaços duplos ou mais
+    sanitized_str = input_str.strip()  
+    sanitized_str = ' '.join(sanitized_str.split())  
     return sanitized_str
 
 def fetch_data_from_api(api_key, url):
@@ -57,31 +60,114 @@ def fetch_data_from_api(api_key, url):
     res = conn.getresponse()
     data = res.read()
 
-    print(f"API Response: {data.decode('utf-8')}") 
+    
 
     return data.decode("utf-8")
 
-
 def parse_company_data(html_data):
-    """Analisa os dados HTML retornados pela API e extrai as informações da empresa."""
+    """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
     try:
-        # Carregar o conteúdo HTML no BeautifulSoup
         soup = BeautifulSoup(html_data, 'html.parser')
 
-        # Procurar pelo nome da empresa e CNPJ no HTML
-        company_name_tag = soup.find('p', {'class': 'text-lg font-medium text-blue-600'})
-        cnpj_tag = soup.find('p', {'class': 'text-sm text-gray-500'})
         
-        if company_name_tag and cnpj_tag:
-            company_name = company_name_tag.get_text(strip=True)
-            company_cnpj = cnpj_tag.get_text(strip=True)
-            return {'name': company_name, 'cnpj': company_cnpj}
-        else:
-            print("Detalhes da empresa não encontrados no HTML")
-            return None
+        companies = []
+
+        
+        li_tags = soup.find_all('li')
+
+        for li_tag in li_tags:
+            
+            company_name_tag = li_tag.find('p', class_=re.compile(r'text-lg'))
+            company_name = company_name_tag.get_text(strip=True) if company_name_tag else None
+
+            if not company_name:
+                print("Nome da empresa não encontrado na tag <li>:")
+                print(li_tag.prettify())  
+
+            
+            company_status = None
+            if "ATIVA" in li_tag.get_text():
+                company_status = "ATIVA"
+                print(f"Status 'ATIVA' encontrado na tag: {li_tag.prettify()}")
+            elif "BAIXADA" in li_tag.get_text():
+                company_status = "BAIXADA"
+                print(f"Status 'BAIXADA' encontrado na tag: {li_tag.prettify()}")
+            elif "INAPTA" in li_tag.get_text():
+                company_status = "INAPTA"
+                print(f"Status 'INAPTA' encontrado na tag: {li_tag.prettify()}")
+
+            if not company_status:
+                print("Status não encontrado na tag <li> ou status desconhecido:")
+                print(li_tag.prettify())
+
+            
+            a_tag = li_tag.find('a', href=True)
+            company_cnpj = None
+            if a_tag:
+                company_cnpj = re.search(r'\d{14}', a_tag['href']).group(0) if re.search(r'\d{14}', a_tag['href']) else None
+            if not company_cnpj:
+                print("CNPJ não encontrado na tag <a> ou URL inválida:")
+                print(a_tag.prettify() if a_tag else "Tag <a> não encontrada")
+            
+            
+            company_city = None
+            location_tag = li_tag.find('svg', {'use': re.compile(r'#location')})
+            
+            
+            if location_tag:
+                city_tag = location_tag.find_parent('p')
+                if city_tag:
+                    
+                    for svg in city_tag.find_all('svg'):
+                        svg.extract()
+                    city_text = city_tag.get_text(strip=True)
+                    company_city = city_text.replace('\n', '').strip()
+            
+            
+            if not company_city:
+                potential_city_tags = li_tag.find_all('p', class_=re.compile(r'text-gray-500'))
+                for tag in potential_city_tags:
+                    if re.search(r'[A-Za-z]+/[A-Za-z]{2}', tag.get_text()):
+                        company_city = tag.get_text(strip=True)
+                        break  
+            
+            
+            if not company_city and location_tag:
+                next_sibling = location_tag.find_next_sibling(text=True)
+                if next_sibling and re.search(r'[A-Za-z]+/[A-Za-z]{2}', next_sibling.strip()):
+                    company_city = next_sibling.strip()
+
+            
+            if not company_city:
+                all_p_tags = li_tag.find_all('p')
+                for tag in all_p_tags:
+                    if re.search(r'[A-Za-z]+/[A-Za-z]{2}', tag.get_text()):
+                        company_city = tag.get_text(strip=True)
+                        break
+            
+            if not company_city:
+                print("Cidade não encontrada para a empresa:")
+                print(li_tag.prettify())  
+
+            print("company_name",company_name)
+            print("company_status",company_status)
+            print("company_cnpj",company_cnpj)
+            print("company_city",company_city)
+
+            
+            if company_name and company_city:
+                company_data = {
+                    'company_name': company_name,
+                    'company_cnpj': company_cnpj,
+                    'company_city': company_city,
+                    'company_status': company_status
+                }
+                companies.append(company_data)
+
+        return companies
+
     except Exception as e:
-        print(f"Erro ao processar HTML: {e}")
-        return None
+        print(f"Ocorreu um erro: {e}")
 
 
 def callback(ch, method, properties, body):
@@ -95,23 +181,24 @@ def callback(ch, method, properties, body):
 
         sanitized_name = sanitize_input(name)
         sanitized_city = sanitize_input(city)
+
         if isinstance(name, str) and isinstance(city, str) and name.strip() and city.strip():
             print(f"Buscando informações para: {name}, {city}")
             
-            # Monta a URL de busca para a API
+            
             api_key = os.getenv('RAPIDAPI_KEY')
             search_url = f"https://cnpj.biz/procura/{quote(sanitized_name)}%20{quote(sanitized_city)}"
             
             print(f"Buscando na API a URL: {search_url}")
             try:
                 response_data = fetch_data_from_api(api_key, search_url)
-                company_info = parse_company_data(response_data)
+                companies_info = parse_company_data(response_data)
             except Exception as e:
                 print(f"Erro ao buscar dados da API: {str(e)}")
-                company_info = None
+                companies_info = []
             
-            if company_info:
-                print(f"Detalhes da Empresa: {company_info}")
+            if companies_info:
+                print(f"Detalhes das Empresas: {json.dumps(companies_info, indent=4, ensure_ascii=False)}")
             else:
                 print("Nenhuma informação de empresa encontrada.")
 
