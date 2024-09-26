@@ -42,7 +42,7 @@ func main() {
     }
 
     service := googleplaces.NewService(apiKey)
-    city := "Barueri"
+    city := "Jandira"
     categoria := "restaurantes"
     radius:= 10000
 

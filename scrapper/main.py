@@ -70,8 +70,6 @@ def fetch_data_from_api(api_key, url):
     
 
     return data.decode("utf-8")
-
-
 def parse_company_data(html_data, google_id, search_city):
 
     """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
@@ -211,6 +209,30 @@ def send_to_rabbitmq(companies):
 
     connection.close()
 
+def consume_confirmation_from_scrapper(channel):
+    """Consume mensagens de confirmação do RabbitMQ."""
+    confirmation_queue = 'confirmation_queue'
+    confirmation_exchange = 'scrapper_exchange'
+
+    # Declare a queue for confirmations
+    channel.queue_declare(queue=confirmation_queue, durable=True)
+    channel.queue_bind(exchange=confirmation_exchange, queue=confirmation_queue)
+
+    def callback_confirmation(ch, method, properties, body):
+        """Callback function for confirmation messages."""
+        confirmation_data = json.loads(body)
+        google_id = confirmation_data.get("googleId")
+        status = confirmation_data.get("status")
+
+        print(f"Received confirmation for Google ID: {google_id} with status: {status}")
+
+    # Start consuming confirmations
+    channel.basic_consume(queue=confirmation_queue, on_message_callback=callback_confirmation, auto_ack=True)
+
+    print(" [*] Waiting for confirmations. To exit press CTRL+C")
+    channel.start_consuming()
+
+
 def callback(ch, method, properties, body):
     """Processa mensagens da fila RabbitMQ e realiza buscas."""
     try:
@@ -260,6 +282,8 @@ def main():
 
     print(" [*] Esperando por mensagens. Para sair pressione CTRL+C")
     channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
+    
+    consume_confirmation_from_scrapper(channel)
 
     try:
         channel.start_consuming()

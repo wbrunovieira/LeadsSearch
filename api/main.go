@@ -2,6 +2,7 @@ package main
 
 import (
 	"api/db"
+	"errors"
 	"strings"
 
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"net/http"
 	"os"
@@ -150,60 +152,63 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 }
 
 func saveCompanyData(data map[string]interface{}) error {
-	lead := db.Lead{}
-	lead_step := db.LeadStep{}
+    lead := db.Lead{}
+    lead_step := db.LeadStep{}
 
-	if v, ok := data["google_id"].(string); ok {
-		existingLead, err := db.GetLeadByGoogleId(v)
-		if err == nil {
-			// Atualiza informações do Lead
-			existingLead.CompanyRegistrationID = data["company_cnpj"].(string)
-			existingLead.BusinessName = data["company_name"].(string)
-			existingLead.City = data["company_city"].(string)
+    if v, ok := data["google_id"].(string); ok {
+        existingLead, err := db.GetLeadByGoogleId(v)
+        if err != nil {
+            if errors.Is(err, gorm.ErrRecordNotFound) {
+               
+                lead.GoogleId = v
+                lead.CompanyRegistrationID = data["company_cnpj"].(string)
+                lead.RegisteredName = data["company_name"].(string)
+                lead.City = data["company_city"].(string)
 
-			err = db.UpdateLead(existingLead)
-			if err != nil {
-				return fmt.Errorf("Erro ao atualizar o lead: %v", err)
-			}
+                err = db.CreateLead(&lead)
+                if err != nil {
+                    return fmt.Errorf("Erro ao criar lead: %v", err)
+                }
 
-			// Adiciona uma etapa no LeadStep
-			lead_step.LeadID = existingLead.ID
-			lead_step.Step = "Empresa Atualizada"
-			lead_step.Status = "Sucesso"
-			lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s atualizada", existingLead.BusinessName, existingLead.CompanyRegistrationID)
+               
+                lead_step.LeadID = lead.ID
+                lead_step.Step = "Empresa Criada"
+                lead_step.Status = "Sucesso"
+                lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s criada", lead.RegisteredName, lead.CompanyRegistrationID)
 
-			err = db.CreateLeadStep(&lead_step)
-			if err != nil {
-				return fmt.Errorf("Erro ao criar LeadStep: %v", err)
-			}
+                err = db.CreateLeadStep(&lead_step)
+                if err != nil {
+                    return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+                }
+            } else {
+               
+                return fmt.Errorf("Erro ao buscar lead: %v", err)
+            }
+        } else {
+           
+            existingLead.CompanyRegistrationID = data["company_cnpj"].(string)
+            existingLead.RegisteredName = data["company_name"].(string)
+            existingLead.City = data["company_city"].(string)
 
-		} else {
-			// Se não existir, cria um novo Lead
-			lead.GoogleId = v
-			lead.CompanyRegistrationID = data["company_cnpj"].(string)
-			lead.BusinessName = data["company_name"].(string)
-			lead.City = data["company_city"].(string)
+            err = db.UpdateLead(existingLead)
+            if err != nil {
+                return fmt.Errorf("Erro ao atualizar o lead: %v", err)
+            }
 
-			err = db.CreateLead(&lead)
-			if err != nil {
-				return fmt.Errorf("Erro ao criar lead: %v", err)
-			}
+         
+            lead_step.LeadID = existingLead.ID
+            lead_step.Step = "Empresa Atualizada"
+            lead_step.Status = "Sucesso"
+            lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s atualizada", existingLead.RegisteredName, existingLead.CompanyRegistrationID)
 
-			// Adiciona uma etapa no LeadStep
-			lead_step.LeadID = lead.ID
-			lead_step.Step = "Empresa Criada"
-			lead_step.Status = "Sucesso"
-			lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s criada", lead.BusinessName, lead.CompanyRegistrationID)
-
-			err = db.CreateLeadStep(&lead_step)
-			if err != nil {
-				return fmt.Errorf("Erro ao criar LeadStep: %v", err)
-			}
-		}
-	}
-	return nil
+            err = db.CreateLeadStep(&lead_step)
+            if err != nil {
+                return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+            }
+        }
+    }
+    return nil
 }
-
 
 
 
@@ -217,19 +222,22 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verificar se o Lead já existe pelo GoogleId
+	
 	existingLead, err := db.GetLeadByGoogleId(lead.GoogleId)
+	if err != nil {
+		log.Printf("Erro ao buscar lead com Google ID: %s", lead.GoogleId)
+	}
 	if err == nil {
-		// Se o lead já existe, apenas atualize os campos CNPJ e BusinessName
+		
 		existingLead.CompanyRegistrationID = lead.CompanyRegistrationID
-		existingLead.BusinessName = lead.BusinessName
+		existingLead.RegisteredName = lead.RegisteredName
 		err = db.UpdateLead(existingLead)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Adiciona um passo para o Lead atualizado
+		
 		lead_step.LeadID = existingLead.ID
 		lead_step.Step = "Lead Atualizado"
 		lead_step.Status = "Sucesso"
@@ -240,14 +248,14 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Criar o Lead se não existir
+		
 		err = db.CreateLead(&lead)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Adiciona um passo para o Lead criado
+		
 		lead_step.LeadID = lead.ID
 		lead_step.Step = "Lead Criado"
 		lead_step.Status = "Sucesso"
@@ -259,7 +267,7 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enviar confirmação para o scrapper via RabbitMQ
+	
 	err = sendConfirmationToScrapper(lead.GoogleId)
 	if err != nil {
 		http.Error(w, "Falha ao enviar confirmação para o scrapper", http.StatusInternalServerError)
@@ -513,13 +521,12 @@ defer func() {
 	
     go consumeLeadsFromRabbitMQ(channel)
 
-    // Inicia o consumo de mensagens da fila de Empresas
+   
     go consumeCompaniesFromRabbitMQ(channel)
 	
 	http.HandleFunc("/leads", leadHandler)
 
-	consumeLeadsFromRabbitMQ(channel)
-
+	
 	port := os.Getenv("PORT")
 
 	fmt.Println("API rodando na porta", port)
