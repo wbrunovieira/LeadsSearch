@@ -18,30 +18,262 @@ import (
 	"time"
 )
 
+func sendConfirmationToScrapper(googleId string) error {
+	conn, err := connectToRabbitMQ()
+	if err != nil {
+		return fmt.Errorf("Erro ao conectar ao RabbitMQ: %v", err)
+	}
+	defer conn.Close()
 
+	ch, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("Erro ao abrir canal no RabbitMQ: %v", err)
+	}
+	defer ch.Close()
+
+	// Declaração do Exchange para o scrapper
+	exchangeName := "scrapper_exchange"
+	err = ch.ExchangeDeclare(
+		exchangeName, 
+		"fanout",     
+		true,         
+		false,        
+		false,        
+		false,        
+		nil,          
+	)
+	if err != nil {
+		return fmt.Errorf("Falha ao declarar o exchange: %v", err)
+	}
+
+	// Mensagem de confirmação
+	message := map[string]string{
+		"googleId": googleId,
+		"status":   "ok",
+	}
+	body, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("Falha ao codificar mensagem para o RabbitMQ: %v", err)
+	}
+
+	// Envia mensagem
+	err = ch.Publish(
+		exchangeName, 
+		"",           
+		false,        
+		false,        
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("Falha ao publicar mensagem no RabbitMQ: %v", err)
+	}
+
+	log.Printf("Confirmação enviada para o scrapper: %v", message)
+	return nil
+}
+
+func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
+	exchangeName := "companies_exchange"
+	queueName := "companies_queue"
+
+	err := ch.ExchangeDeclare(
+		exchangeName, 
+		"fanout",     
+		true,         
+		false,        
+		false,        
+		false,        
+		nil,          
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare exchange: %v", err)
+	}
+
+	q, err := ch.QueueDeclare(
+		queueName,
+		true, // Durable
+		false, // Delete when unused
+		false, // Exclusive
+		false, // No-wait
+		nil,   // Arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to register a consumer: %v", err)
+	}
+
+	err = ch.QueueBind(
+		q.Name,        
+		"",            
+		exchangeName,  
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("Failed to bind queue to exchange: %v", err)
+	}
+
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		true,  // Auto-acknowledge
+		false, // Exclusive
+		false, // No-local
+		false, // No-wait
+		nil,   // Arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to register a consumer: %v", err)
+	}
+
+	go func() {
+		for d := range msgs {
+			var companyData map[string]interface{}
+			err := json.Unmarshal(d.Body, &companyData)
+			if err != nil {
+				log.Printf("Error decoding JSON: %v", err)
+				continue
+			}
+
+			// Salvar no banco de dados
+			err = saveCompanyData(companyData)
+			if err != nil {
+				log.Printf("Failed to save company: %v", err)
+			}
+		}
+	}()
+
+	log.Println("Consuming companies from RabbitMQ...")
+	select {} // Block forever
+}
+
+func saveCompanyData(data map[string]interface{}) error {
+	lead := db.Lead{}
+	lead_step := db.LeadStep{}
+
+	if v, ok := data["google_id"].(string); ok {
+		existingLead, err := db.GetLeadByGoogleId(v)
+		if err == nil {
+			// Atualiza informações do Lead
+			existingLead.CompanyRegistrationID = data["company_cnpj"].(string)
+			existingLead.BusinessName = data["company_name"].(string)
+			existingLead.City = data["company_city"].(string)
+
+			err = db.UpdateLead(existingLead)
+			if err != nil {
+				return fmt.Errorf("Erro ao atualizar o lead: %v", err)
+			}
+
+			// Adiciona uma etapa no LeadStep
+			lead_step.LeadID = existingLead.ID
+			lead_step.Step = "Empresa Atualizada"
+			lead_step.Status = "Sucesso"
+			lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s atualizada", existingLead.BusinessName, existingLead.CompanyRegistrationID)
+
+			err = db.CreateLeadStep(&lead_step)
+			if err != nil {
+				return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+			}
+
+		} else {
+			// Se não existir, cria um novo Lead
+			lead.GoogleId = v
+			lead.CompanyRegistrationID = data["company_cnpj"].(string)
+			lead.BusinessName = data["company_name"].(string)
+			lead.City = data["company_city"].(string)
+
+			err = db.CreateLead(&lead)
+			if err != nil {
+				return fmt.Errorf("Erro ao criar lead: %v", err)
+			}
+
+			// Adiciona uma etapa no LeadStep
+			lead_step.LeadID = lead.ID
+			lead_step.Step = "Empresa Criada"
+			lead_step.Status = "Sucesso"
+			lead_step.Details = fmt.Sprintf("Empresa %s com CNPJ %s criada", lead.BusinessName, lead.CompanyRegistrationID)
+
+			err = db.CreateLeadStep(&lead_step)
+			if err != nil {
+				return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+			}
+		}
+	}
+	return nil
+}
 
 
 
 
 func leadHandler(w http.ResponseWriter, r *http.Request) {
 	var lead db.Lead
+	var lead_step db.LeadStep
+
 	err := json.NewDecoder(r.Body).Decode(&lead)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err = db.CreateLead(&lead)
+	// Verificar se o Lead já existe pelo GoogleId
+	existingLead, err := db.GetLeadByGoogleId(lead.GoogleId)
+	if err == nil {
+		// Se o lead já existe, apenas atualize os campos CNPJ e BusinessName
+		existingLead.CompanyRegistrationID = lead.CompanyRegistrationID
+		existingLead.BusinessName = lead.BusinessName
+		err = db.UpdateLead(existingLead)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Adiciona um passo para o Lead atualizado
+		lead_step.LeadID = existingLead.ID
+		lead_step.Step = "Lead Atualizado"
+		lead_step.Status = "Sucesso"
+		lead_step.Details = fmt.Sprintf("Lead %s foi atualizado com CNPJ %s", existingLead.BusinessName, existingLead.CompanyRegistrationID)
+		err = db.CreateLeadStep(&lead_step)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Criar o Lead se não existir
+		err = db.CreateLead(&lead)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Adiciona um passo para o Lead criado
+		lead_step.LeadID = lead.ID
+		lead_step.Step = "Lead Criado"
+		lead_step.Status = "Sucesso"
+		lead_step.Details = fmt.Sprintf("Lead %s foi criado com CNPJ %s", lead.BusinessName, lead.CompanyRegistrationID)
+		err = db.CreateLeadStep(&lead_step)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Enviar confirmação para o scrapper via RabbitMQ
+	err = sendConfirmationToScrapper(lead.GoogleId)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Falha ao enviar confirmação para o scrapper", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "Lead salvo com sucesso!")
-
-
+	fmt.Fprintf(w, "Lead e LeadStep salvos com sucesso!")
 }
+
+
+
+
+
 
 func connectToRabbitMQ() (*amqp.Connection, error) {
     rabbitmqHost := os.Getenv("RABBITMQ_HOST")
@@ -242,6 +474,7 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     return nil
 }
 
+
 func main() {
 
 	log.Println("Starting API service...")
@@ -267,6 +500,8 @@ defer func() {
 }()
 
 
+
+
 	log.Println("Starting to consume leads from RabbitMQ...")
 	
 	
@@ -274,9 +509,12 @@ defer func() {
 	db.Connect()
 
 	defer db.Close()
-	db.Migrate(db.DB)
+	db.Migrate()
 	
+    go consumeLeadsFromRabbitMQ(channel)
 
+    // Inicia o consumo de mensagens da fila de Empresas
+    go consumeCompaniesFromRabbitMQ(channel)
 	
 	http.HandleFunc("/leads", leadHandler)
 

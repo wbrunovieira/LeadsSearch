@@ -42,9 +42,9 @@ func main() {
     }
 
     service := googleplaces.NewService(apiKey)
-    city := "Osasco"
+    city := "Barueri"
     categoria := "restaurantes"
-    radius:= 1000
+    radius:= 10000
 
     coordinates, err := service.GeocodeCity(city)
     if err != nil {

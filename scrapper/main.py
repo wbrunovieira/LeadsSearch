@@ -31,9 +31,16 @@ def setup_rabbitmq():
 
 def setup_channel(connection):
     """Configura o canal RabbitMQ."""
+
     channel = connection.channel()
+
     exchange_name = 'leads_exchange'
     channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
+
+    companies_exchange_name = 'companies_exchange'
+    channel.exchange_declare(exchange=companies_exchange_name, exchange_type='fanout', durable=True)
+    
+
     queue_name = 'scrapper_queue'
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(exchange=exchange_name, queue=queue_name)
@@ -64,7 +71,9 @@ def fetch_data_from_api(api_key, url):
 
     return data.decode("utf-8")
 
-def parse_company_data(html_data, google_id):
+
+def parse_company_data(html_data, google_id, search_city):
+
     """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
     try:
         soup = BeautifulSoup(html_data, 'html.parser')
@@ -147,7 +156,7 @@ def parse_company_data(html_data, google_id):
             
             if not company_city:
                 print("Cidade não encontrada para a empresa:")
-                print(li_tag.prettify())  
+                print(li_tag.prettify()) 
 
             print("company_name",company_name)
             print("company_status",company_status)
@@ -155,22 +164,52 @@ def parse_company_data(html_data, google_id):
             print("company_city",company_city)
             print("google_id",google_id)
 
-            
-            if company_name and company_city:
-                company_data = {
-                    'company_name': company_name,
-                    'company_cnpj': company_cnpj,
-                    'company_city': company_city,
-                    'company_status': company_status,
-                    'google_id': google_id 
-                }
-                companies.append(company_data)
+            if company_city:
+               # Usando regex para remover "/SP" ou outras partes que começam com '/'
+                    company_city_cleaned = re.sub(r'/.*', '', company_city).strip()
+            else:
+                company_city_cleaned = company_city
+
+            search_city_cleaned = search_city.strip()
+            print(f"Comparando {company_city_cleaned} com {search_city_cleaned}")
+            if company_status == "ATIVA" and company_city_cleaned == search_city_cleaned:
+                        print("if company_status entrou")
+                        company_data = {
+                            'company_name': company_name,
+                            'company_cnpj': company_cnpj,
+                            'company_city': company_city,
+                            'company_status': company_status,
+                            'google_id': google_id 
+                        }
+                        companies.append(company_data)
+                
 
         return companies
 
     except Exception as e:
         print(f"Ocorreu um erro: {e}")
 
+def send_to_rabbitmq(companies):
+    """Envia os dados das empresas para o RabbitMQ."""
+    print("enviando companie para o rabbit",companies)
+    connection = setup_rabbitmq()  # Função que já existe para conectar ao RabbitMQ
+    channel = setup_channel(connection)  # Função que já existe para configurar o canal
+    exchange_name = 'companies_exchange'  # Nome do exchange que a API irá consumir
+
+    for company in companies:
+        message = json.dumps(company)
+
+        channel.basic_publish(
+            exchange=exchange_name, 
+            routing_key='', 
+            body=message,
+            properties=pika.BasicProperties(
+                delivery_mode=2,  # Tornar a mensagem persistente
+            )
+        )
+        print(f"Dados da empresa enviados: {company}")
+
+    connection.close()
 
 def callback(ch, method, properties, body):
     """Processa mensagens da fila RabbitMQ e realiza buscas."""
@@ -195,15 +234,18 @@ def callback(ch, method, properties, body):
             print(f"Buscando na API a URL: {search_url}")
             try:
                 response_data = fetch_data_from_api(api_key, search_url)
-                companies_info = parse_company_data(response_data, google_id)
+                companies_info = parse_company_data(response_data, google_id,city)
+                print(f"Detalhes das Empresas: antes do if{json.dumps(companies_info, indent=4, ensure_ascii=False)}")
+                if companies_info:
+                    print(f"Detalhes das Empresas: {json.dumps(companies_info, indent=4, ensure_ascii=False)}")
+                    send_to_rabbitmq(companies_info)
+                else:
+                    print("Nenhuma informação de empresa encontrada.")
+
             except Exception as e:
                 print(f"Erro ao buscar dados da API: {str(e)}")
                 companies_info = []
             
-            if companies_info:
-                print(f"Detalhes das Empresas: {json.dumps(companies_info, indent=4, ensure_ascii=False)}")
-            else:
-                print("Nenhuma informação de empresa encontrada.")
 
         else:
             print("Nome ou Cidade não encontrados no lead.")

@@ -25,6 +25,7 @@ type Lead struct {
 	Whatsapp            string  `gorm:"size:50"`
 	Website          string  `gorm:"type:text"`
 	Email          	 string  `gorm:"type:text"`
+	LeadSteps             []LeadStep `gorm:"foreignKey:LeadID"`
 	Instagram          	 string  `gorm:"type:text"`
 	Facebook          	 string  `gorm:"type:text"`
 	TikTok          	 string  `gorm:"type:text"`
@@ -92,5 +93,25 @@ func GetLeads() ([]Lead, error) {
         return nil, result.Error
     }
     return leads, nil
+}
+
+func GetLeadByGoogleId(googleId string) (*Lead, error) {
+	var lead Lead
+	result := DB.Where("google_id = ?", googleId).First(&lead)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("Lead não encontrado")
+		}
+		return nil, result.Error
+	}
+	return &lead, nil
+}
+
+func UpdateLead(lead *Lead) error {
+	result := DB.Save(lead)
+	if result.Error != nil {
+		return fmt.Errorf("Erro ao atualizar o lead: %v", result.Error)
+	}
+	return nil
 }
 
