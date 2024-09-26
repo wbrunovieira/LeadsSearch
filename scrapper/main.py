@@ -64,7 +64,7 @@ def fetch_data_from_api(api_key, url):
 
     return data.decode("utf-8")
 
-def parse_company_data(html_data):
+def parse_company_data(html_data, google_id):
     """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
     try:
         soup = BeautifulSoup(html_data, 'html.parser')
@@ -153,6 +153,7 @@ def parse_company_data(html_data):
             print("company_status",company_status)
             print("company_cnpj",company_cnpj)
             print("company_city",company_city)
+            print("google_id",google_id)
 
             
             if company_name and company_city:
@@ -160,7 +161,8 @@ def parse_company_data(html_data):
                     'company_name': company_name,
                     'company_cnpj': company_cnpj,
                     'company_city': company_city,
-                    'company_status': company_status
+                    'company_status': company_status,
+                    'google_id': google_id 
                 }
                 companies.append(company_data)
 
@@ -178,6 +180,7 @@ def callback(ch, method, properties, body):
 
         name = lead_data.get('Name')
         city = lead_data.get('City')
+        google_id = lead_data.get('PlaceID')
 
         sanitized_name = sanitize_input(name)
         sanitized_city = sanitize_input(city)
@@ -192,7 +195,7 @@ def callback(ch, method, properties, body):
             print(f"Buscando na API a URL: {search_url}")
             try:
                 response_data = fetch_data_from_api(api_key, search_url)
-                companies_info = parse_company_data(response_data)
+                companies_info = parse_company_data(response_data, google_id)
             except Exception as e:
                 print(f"Erro ao buscar dados da API: {str(e)}")
                 companies_info = []

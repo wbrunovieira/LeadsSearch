@@ -2,9 +2,11 @@ package db
 
 import (
 	"database/sql"
-	"time"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Lead struct {
@@ -54,10 +56,32 @@ type Lead struct {
 
 
 func CreateLead(lead *Lead) error {
-    result := DB.Create(lead)
+	var existingLead Lead
+	result := DB.Where("google_id = ?", lead.GoogleId).First(&existingLead)
+    if result.Error == nil {
+        return fmt.Errorf("Lead com GoogleId %s já existe", lead.GoogleId)
+    }
+
+    if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+        return fmt.Errorf("Erro ao verificar se o lead já existe: %v", result.Error)
+    }
+
+    result = DB.Create(lead)
     if result.Error != nil {
         return fmt.Errorf("Failed to save lead to database: %v", result.Error)
     }
+	
+	leadStep := LeadStep{
+		LeadID: lead.ID,
+		Step:   "Lead Criado",
+		Status: "Sucesso",
+		Details: fmt.Sprintf("Lead %s foi criado com sucesso", lead.BusinessName),
+	}
+	err := CreateLeadStep(&leadStep)
+	if err != nil {
+		return fmt.Errorf("Falha ao salvar o passo do lead: %v", err)
+	}
+
     return nil
 }
 
