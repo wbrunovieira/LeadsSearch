@@ -21,62 +21,42 @@ import (
 )
 
 func sendConfirmationToScrapper(googleId string) error {
-	conn, err := connectToRabbitMQ()
-	if err != nil {
-		return fmt.Errorf("Erro ao conectar ao RabbitMQ: %v", err)
-	}
-	defer conn.Close()
+    log.Printf("Iniciando envio de confirmação para o scrapper com Google ID: %s", googleId)
 
-	ch, err := conn.Channel()
-	if err != nil {
-		return fmt.Errorf("Erro ao abrir canal no RabbitMQ: %v", err)
-	}
-	defer ch.Close()
+    // Reutiliza a conexão e o canal
+    _, ch, err := connectToRabbitMQ()
+    if err != nil {
+        return fmt.Errorf("Erro ao conectar ao RabbitMQ: %v", err)
+    }
 
-	// Declaração do Exchange para o scrapper
-	exchangeName := "scrapper_exchange"
-	err = ch.ExchangeDeclare(
-		exchangeName, 
-		"fanout",     
-		true,         
-		false,        
-		false,        
-		false,        
-		nil,          
-	)
-	if err != nil {
-		return fmt.Errorf("Falha ao declarar o exchange: %v", err)
-	}
+    // Mensagem de confirmação
+    message := map[string]string{
+        "googleId": googleId,
+        "status":   "ok",
+    }
+    body, err := json.Marshal(message)
+    if err != nil {
+        return fmt.Errorf("Falha ao codificar mensagem para o RabbitMQ: %v", err)
+    }
 
-	// Mensagem de confirmação
-	message := map[string]string{
-		"googleId": googleId,
-		"status":   "ok",
-	}
-	body, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("Falha ao codificar mensagem para o RabbitMQ: %v", err)
-	}
+    // Publica a mensagem
+    err = ch.Publish(
+        "scrapper_exchange", // exchange
+        "",                  // routing key
+        false,               // mandatory
+        false,               // immediate
+        amqp.Publishing{
+            ContentType: "application/json",
+            Body:        body,
+        },
+    )
+    if err != nil {
+        return fmt.Errorf("Falha ao publicar mensagem no RabbitMQ: %v", err)
+    }
 
-	// Envia mensagem
-	err = ch.Publish(
-		exchangeName, 
-		"",           
-		false,        
-		false,        
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("Falha ao publicar mensagem no RabbitMQ: %v", err)
-	}
-
-	log.Printf("Confirmação enviada para o scrapper: %v", message)
-	return nil
+    log.Printf("Confirmação enviada para o scrapper: %v", message)
+    return nil
 }
-
 func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	exchangeName := "companies_exchange"
 	queueName := "companies_queue"
@@ -190,8 +170,11 @@ func saveCompanyData(data map[string]interface{}) error {
             existingLead.RegisteredName = data["company_name"].(string)
             existingLead.City = data["company_city"].(string)
 
+			log.Printf("Iniciando atualização do Lead com Google ID: %s", existingLead.GoogleId)
             err = db.UpdateLead(existingLead)
+			log.Printf("Atualização do Lead com Google ID: %s concluída", existingLead.GoogleId)
             if err != nil {
+				log.Printf("Erro ao atualizar o lead: %v", err)
                 return fmt.Errorf("Erro ao atualizar o lead: %v", err)
             }
 
@@ -210,100 +193,116 @@ func saveCompanyData(data map[string]interface{}) error {
     return nil
 }
 
-
-
 func leadHandler(w http.ResponseWriter, r *http.Request) {
-	var lead db.Lead
-	var lead_step db.LeadStep
+    var lead db.Lead
+    var lead_step db.LeadStep
 
-	err := json.NewDecoder(r.Body).Decode(&lead)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+    // Decode o corpo da requisição
+    err := json.NewDecoder(r.Body).Decode(&lead)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
 
-	
-	existingLead, err := db.GetLeadByGoogleId(lead.GoogleId)
-	if err != nil {
-		log.Printf("Erro ao buscar lead com Google ID: %s", lead.GoogleId)
-	}
-	if err == nil {
-		
-		existingLead.CompanyRegistrationID = lead.CompanyRegistrationID
-		existingLead.RegisteredName = lead.RegisteredName
-		err = db.UpdateLead(existingLead)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+    // Tente buscar o Lead pelo Google ID
+    existingLead, err := db.GetLeadByGoogleId(lead.GoogleId)
+    if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+        log.Printf("Erro ao buscar lead com Google ID: %s - %v", lead.GoogleId, err)
+        http.Error(w, "Erro ao buscar lead", http.StatusInternalServerError)
+        return
+    }
 
-		
-		lead_step.LeadID = existingLead.ID
-		lead_step.Step = "Lead Atualizado"
-		lead_step.Status = "Sucesso"
-		lead_step.Details = fmt.Sprintf("Lead %s foi atualizado com CNPJ %s", existingLead.BusinessName, existingLead.CompanyRegistrationID)
-		err = db.CreateLeadStep(&lead_step)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		
-		err = db.CreateLead(&lead)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+    // Se o lead existir, atualize
+        log.Printf("Chamando update1 Lead para Google ID: %s", existingLead.GoogleId)
+        existingLead.CompanyRegistrationID = lead.CompanyRegistrationID
+        existingLead.RegisteredName = lead.RegisteredName
+        log.Printf("Chamando update1 existingLead.RegisteredName: %s", existingLead.RegisteredName)
+        log.Printf("Chamando sendConfirmationToScrapper para Google antes ID: %s", existingLead.GoogleId)
+        err = sendConfirmationToScrapper(existingLead.GoogleId)
+        if err != nil {
+            log.Printf("Erro ao enviar confirmação para o scrapper antes: %v", err)
+            http.Error(w, "Falha ao enviar confirmação para o scrapper antes", http.StatusInternalServerError)
+            return
+        }
+        err = db.UpdateLead(existingLead)
+        if err != nil {
+            log.Printf("Erro ao atualizar o lead: %v", err)
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
 
-		
-		lead_step.LeadID = lead.ID
-		lead_step.Step = "Lead Criado"
-		lead_step.Status = "Sucesso"
-		lead_step.Details = fmt.Sprintf("Lead %s foi criado com CNPJ %s", lead.BusinessName, lead.CompanyRegistrationID)
-		err = db.CreateLeadStep(&lead_step)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
+        }
+        log.Printf("Lead atualizado com sucesso na tabela1 para Google ID: %s", existingLead.GoogleId)
 
-	
-	err = sendConfirmationToScrapper(lead.GoogleId)
-	if err != nil {
-		http.Error(w, "Falha ao enviar confirmação para o scrapper", http.StatusInternalServerError)
-		return
-	}
+        // Crie o LeadStep para a atualização
+		log.Printf("Chamando update Lead para Google ID: %s", existingLead.GoogleId)
+        lead_step.LeadID = existingLead.ID
+        lead_step.Step = "Lead Atualizado"
+        lead_step.Status = "Sucesso"
+        lead_step.Details = fmt.Sprintf("Lead %s foi atualizado com CNPJ %s", existingLead.BusinessName, existingLead.CompanyRegistrationID)
+        err = db.CreateLeadStep(&lead_step)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
 
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "Lead e LeadStep salvos com sucesso!")
+		log.Printf("Chamando sendConfirmationToScrapper para Google ID: %s", existingLead.GoogleId)
+        err = sendConfirmationToScrapper(existingLead.GoogleId)
+        if err != nil {
+            log.Printf("Erro ao enviar confirmação para o scrapper: %v", err)
+            http.Error(w, "Falha ao enviar confirmação para o scrapper", http.StatusInternalServerError)
+            return
+        }
+
+   
+    w.WriteHeader(http.StatusCreated)
+    fmt.Fprintf(w, "Lead e LeadStep salvos com sucesso!")
 }
 
+var rabbitConn *amqp.Connection
+var rabbitChannel *amqp.Channel
 
 
+func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
 
+    if rabbitConn != nil && rabbitChannel != nil {
+        return rabbitConn, rabbitChannel, nil
+    }
 
-
-func connectToRabbitMQ() (*amqp.Connection, error) {
     rabbitmqHost := os.Getenv("RABBITMQ_HOST")
     rabbitmqPort := os.Getenv("RABBITMQ_PORT")
-    if rabbitmqHost == "" || rabbitmqPort == "" {
-        return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
+
+     if rabbitmqHost == "" || rabbitmqPort == "" {
+        return nil, nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
     }
 
 	var conn *amqp.Connection
+    var ch *amqp.Channel
     var err error
 
-	for i := 0; i < 5; i++ {
+   for i := 0; i < 5; i++ {
         conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
         if err == nil {
-            return conn, nil
+            break
         }
-
         log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
         time.Sleep(10 * time.Second)
     }
 
-    return nil, fmt.Errorf("failed to connect to RabbitMQ at %s:%s after 5 retries: %v", rabbitmqHost, rabbitmqPort, err)
+    if err != nil {
+        return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
+    }
+
+    // Abre o canal do RabbitMQ
+    ch, err = conn.Channel()
+    if err != nil {
+        return nil, nil, fmt.Errorf("failed to open RabbitMQ channel: %v", err)
+    }
+
+    rabbitConn = conn
+    rabbitChannel = ch
+
+    return conn, ch, nil
+
 }
 
 func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
@@ -482,43 +481,61 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     return nil
 }
 
+func closeRabbitMQ() {
+    if rabbitChannel != nil {
+        rabbitChannel.Close()
+    }
+    if rabbitConn != nil {
+        rabbitConn.Close()
+    }
+}
+
+func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
+    channel, err := connection.Channel()
+    if err != nil {
+        return nil, fmt.Errorf("Erro ao abrir canal: %v", err)
+    }
+
+    // Declaração da exchange scrapper_exchange
+    exchangeName := "scrapper_exchange"
+    err = channel.ExchangeDeclare(
+        exchangeName,
+        "fanout",     // Tipo de exchange
+        true,         // Durável
+        false,        // Auto-delete
+        false,        // Interna
+        false,        // No-wait
+        nil,          // Argumentos adicionais
+    )
+    if err != nil {
+        return nil, fmt.Errorf("Erro ao declarar exchange: %v", err)
+    }
+
+    log.Printf("Exchange %s declarada com sucesso", exchangeName)
+    return channel, nil
+}
+
+
 
 func main() {
 
 	log.Println("Starting API service...")
 
-	conn, err := connectToRabbitMQ()
+    _, channel, err := connectToRabbitMQ() // Corrigido para capturar os 3 retornos
 	if err != nil {
-		log.Fatalf("Could not connect to RabbitMQ: %v", err)
+		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
 	}
-	log.Printf("Successfully connected to RabbitMQ at %s", conn.LocalAddr())
-	defer func() {
-		log.Println("Closing RabbitMQ connection...")
-		conn.Close()
-	}()
+	defer closeRabbitMQ()
 
-	channel, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("Failed to open a RabbitMQ channel: %v", err)
-	}
-	log.Println("Successfully opened a RabbitMQ channel")
-defer func() {
-    log.Println("Closing RabbitMQ channel...")
-    channel.Close()
-}()
-
-
-
-
-	log.Println("Starting to consume leads from RabbitMQ...")
-	
-	
 	log.Println("Connecting to the database...")
 	db.Connect()
 
 	defer db.Close()
 	db.Migrate()
-	
+
+    log.Println("Starting to consume leads from RabbitMQ...")
+
+ 	
     go consumeLeadsFromRabbitMQ(channel)
 
    

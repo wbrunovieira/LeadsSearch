@@ -64,6 +64,7 @@ func CreateLead(lead *Lead) error {
     }
 
     if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		
         return fmt.Errorf("Erro ao verificar se o lead já existe: %v", result.Error)
     }
 

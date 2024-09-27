@@ -31,20 +31,32 @@ def setup_rabbitmq():
 
 def setup_channel(connection):
     """Configura o canal RabbitMQ."""
-
+    
+    # Criar o canal no RabbitMQ
     channel = connection.channel()
 
+    # Declarar exchanges do tipo 'fanout' para leads e companies
     exchange_name = 'leads_exchange'
-    channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
-
     companies_exchange_name = 'companies_exchange'
-    channel.exchange_declare(exchange=companies_exchange_name, exchange_type='fanout', durable=True)
-    
+    scrapper_exchange_name = 'scrapper_exchange'
 
+    channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
+    channel.exchange_declare(exchange=companies_exchange_name, exchange_type='fanout', durable=True)
+    channel.exchange_declare(exchange=scrapper_exchange_name, exchange_type='fanout', durable=True)
+
+    # Declarar a fila scrapper_queue (para consumir leads)
     queue_name = 'scrapper_queue'
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(exchange=exchange_name, queue=queue_name)
+
+    # Declarar a fila de confirmação scrapper_confirmation_queue (para confirmações)
+    confirmation_queue_name = 'scrapper_confirmation_queue'
+    channel.queue_declare(queue=confirmation_queue_name, durable=True)
+    channel.queue_bind(exchange=scrapper_exchange_name, queue=confirmation_queue_name)
+
     return channel
+
+
 
 def sanitize_input(input_str):
     """Remove caracteres especiais e espaços duplos, e prepara o input para ser usado na URL."""
@@ -194,29 +206,37 @@ def send_to_rabbitmq(companies):
     channel = setup_channel(connection)  # Função que já existe para configurar o canal
     exchange_name = 'companies_exchange'  # Nome do exchange que a API irá consumir
 
+    channel.confirm_delivery()
+
     for company in companies:
         message = json.dumps(company)
 
-        channel.basic_publish(
-            exchange=exchange_name, 
-            routing_key='', 
-            body=message,
-            properties=pika.BasicProperties(
-                delivery_mode=2,  # Tornar a mensagem persistente
+        try:
+            channel.basic_publish(
+                exchange=exchange_name,
+                routing_key='',
+                body=message,
+                properties=pika.BasicProperties(
+                    delivery_mode=2,  
+                )
             )
-        )
-        print(f"Dados da empresa enviados: {company}")
+            print(f"Dados da empresa enviados: {company}")
+
+        except pika.exceptions.UnroutableError:
+            print(f"Erro ao publicar a mensagem: {company}")
+            continue
 
     connection.close()
 
-def consume_confirmation_from_scrapper(channel):
+def consume_confirmation_from_scrapper(connection):
     """Consume mensagens de confirmação do RabbitMQ."""
-    confirmation_queue = 'confirmation_queue'
+    print("started Received confirmation consume_confirmation_from_scrapper")
+    channel = connection.channel()
+
+    confirmation_queue = 'scrapper_confirmation_queue'
     confirmation_exchange = 'scrapper_exchange'
 
-    # Declare a queue for confirmations
-    channel.queue_declare(queue=confirmation_queue, durable=True)
-    channel.queue_bind(exchange=confirmation_exchange, queue=confirmation_queue)
+    channel.exchange_declare(exchange=confirmation_exchange, exchange_type='fanout', durable=True)
 
     def callback_confirmation(ch, method, properties, body):
         """Callback function for confirmation messages."""
@@ -225,6 +245,22 @@ def consume_confirmation_from_scrapper(channel):
         status = confirmation_data.get("status")
 
         print(f"Received confirmation for Google ID: {google_id} with status: {status}")
+        response_message = json.dumps({
+            'googleId': google_id,
+            'status': 'processed'
+        })
+        try:
+            channel.basic_publish(
+                exchange=confirmation_exchange,
+                routing_key='',
+                body=response_message,
+                properties=pika.BasicProperties(
+                    delivery_mode=2,  # Tornar a mensagem persistente
+                )
+            )
+            print(f"Confirmação de processamento enviada: {response_message}")
+        except pika.exceptions.UnroutableError:
+            print(f"Erro ao enviar a confirmação de processamento para Google ID: {google_id}")
 
     # Start consuming confirmations
     channel.basic_consume(queue=confirmation_queue, on_message_callback=callback_confirmation, auto_ack=True)
@@ -274,6 +310,16 @@ def callback(ch, method, properties, body):
     except json.JSONDecodeError as e:
         print(f"Erro ao decodificar JSON: {e}")
 
+def consume_scrapper_queue(connection):
+    # Abra um canal separado para scrapper_queue
+    channel = connection.channel()
+
+    # Configura o consumidor para scrapper_queue
+    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
+    
+    print(" [*] Consuming messages from scrapper_queue")
+    channel.start_consuming()
+
 
 def main():
     """Função principal para iniciar o serviço de scraping de leads."""
@@ -281,16 +327,19 @@ def main():
     channel = setup_channel(connection)
 
     print(" [*] Esperando por mensagens. Para sair pressione CTRL+C")
-    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
+    
+
+    consume_scrapper_queue(connection)
     
     consume_confirmation_from_scrapper(channel)
 
     try:
-        channel.start_consuming()
+         pass
     except KeyboardInterrupt:
         print(" [x] Interrompido pelo usuário")
         channel.stop_consuming()
     finally:
+        channel.close()
         connection.close()
 
 if __name__ == "__main__":
