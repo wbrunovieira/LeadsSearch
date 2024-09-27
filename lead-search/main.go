@@ -42,7 +42,7 @@ func main() {
     }
 
     service := googleplaces.NewService(apiKey)
-    city := "Guarulhos"
+    city := "Campinas"
     categoria := "restaurantes"
     radius:= 10000
 

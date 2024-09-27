@@ -1,24 +1,17 @@
+
+# pylint: disable=E0401
 import os
-import time
 import json
 import re
-
-import random
-# pylint: disable=E0401
+import asyncio
+import aiohttp
 import pika
-import requests
-import http.client 
-from html import unescape
-
+import http.client
+from urllib.parse import quote
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-from bs4 import BeautifulSoup
-
-from urllib.parse import quote
-
 load_dotenv()
-
-
 
 def setup_rabbitmq():
     """Configura a conexão com o RabbitMQ."""
@@ -31,11 +24,7 @@ def setup_rabbitmq():
 
 def setup_channel(connection):
     """Configura o canal RabbitMQ."""
-    
-    # Criar o canal no RabbitMQ
     channel = connection.channel()
-
-    # Declarar exchanges do tipo 'fanout' para leads e companies
     exchange_name = 'leads_exchange'
     companies_exchange_name = 'companies_exchange'
     scrapper_exchange_name = 'scrapper_exchange'
@@ -44,282 +33,219 @@ def setup_channel(connection):
     channel.exchange_declare(exchange=companies_exchange_name, exchange_type='fanout', durable=True)
     channel.exchange_declare(exchange=scrapper_exchange_name, exchange_type='fanout', durable=True)
 
-    # Declarar a fila scrapper_queue (para consumir leads)
     queue_name = 'scrapper_queue'
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(exchange=exchange_name, queue=queue_name)
 
-    # Declarar a fila de confirmação scrapper_confirmation_queue (para confirmações)
     confirmation_queue_name = 'scrapper_confirmation_queue'
     channel.queue_declare(queue=confirmation_queue_name, durable=True)
     channel.queue_bind(exchange=scrapper_exchange_name, queue=confirmation_queue_name)
 
     return channel
 
+async def fetch_serper_data(name, city):
+    """Faz uma requisição à API Google Serper para buscar dados com base no nome e cidade."""
+    conn = http.client.HTTPSConnection("google.serper.dev")
+    
+    payload = json.dumps({
+      "q": f"{name}, {city}",  # Substitui o nome e cidade dinamicamente
+      "gl": "br",  # Localização geográfica (Brasil)
+      "hl": "pt-br",  # Idioma (Português)
+      "num": 30  # Número de resultados desejados
+    })
+    
+    headers = {
+        'X-API-KEY': os.getenv('SERPER_API_KEY'), 
+        'Content-Type': 'application/json'
+    }
 
+    conn.request("POST", "/search", payload, headers)
+    res = conn.getresponse()
+    data = res.read()
+    
+    # Retorna o conteúdo decodificado
+    return data.decode("utf-8")
 
-def sanitize_input(input_str):
-    """Remove caracteres especiais e espaços duplos, e prepara o input para ser usado na URL."""
-    sanitized_str = input_str.strip()  
-    sanitized_str = ' '.join(sanitized_str.split())  
-    return sanitized_str
-
-def fetch_data_from_api(api_key, url):
-    """Faz uma requisição à API de scraping com a URL especificada."""
-    conn = http.client.HTTPSConnection("cheap-web-scarping-api.p.rapidapi.com")
+async def fetch_data_from_api(api_key, url):
+    """Faz uma requisição assíncrona à API de scraping com a URL especificada."""
     headers = {
         'x-rapidapi-key': api_key,
         'x-rapidapi-host': "cheap-web-scarping-api.p.rapidapi.com"
     }
-    
     encoded_url = quote(url)
-    api_path = f"/scrape?url={encoded_url}"
-    
-    conn.request("GET", api_path, headers=headers)
-    res = conn.getresponse()
-    data = res.read()
+    api_url = f"https://cheap-web-scarping-api.p.rapidapi.com/scrape?url={encoded_url}"
 
-    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(api_url, headers=headers) as response:
+            return await response.text()
 
-    return data.decode("utf-8")
-def parse_company_data(html_data, google_id, search_city):
-
-    """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
+async def fetch_cnpj_data(cnpj):
+    """Consulta dados do CNPJ usando a API da Invertexto de forma assíncrona."""
     try:
-        soup = BeautifulSoup(html_data, 'html.parser')
+        api_token = os.getenv('INVERTEXTO_API_TOKEN')
+        api_url = f"https://api.invertexto.com/v1/cnpj/{cnpj}?token={api_token}"
 
-        
-        companies = []
-
-        
-        li_tags = soup.find_all('li')
-
-        for li_tag in li_tags:
-            
-            company_name_tag = li_tag.find('p', class_=re.compile(r'text-lg'))
-            company_name = company_name_tag.get_text(strip=True) if company_name_tag else None
-
-            if not company_name:
-                print("Nome da empresa não encontrado na tag <li>:")
-                print(li_tag.prettify())  
-
-            
-            company_status = None
-            if "ATIVA" in li_tag.get_text():
-                company_status = "ATIVA"
-                print(f"Status 'ATIVA' encontrado na tag: {li_tag.prettify()}")
-            elif "BAIXADA" in li_tag.get_text():
-                company_status = "BAIXADA"
-                print(f"Status 'BAIXADA' encontrado na tag: {li_tag.prettify()}")
-            elif "INAPTA" in li_tag.get_text():
-                company_status = "INAPTA"
-                print(f"Status 'INAPTA' encontrado na tag: {li_tag.prettify()}")
-
-            if not company_status:
-                print("Status não encontrado na tag <li> ou status desconhecido:")
-                print(li_tag.prettify())
-
-            
-            a_tag = li_tag.find('a', href=True)
-            company_cnpj = None
-            if a_tag:
-                company_cnpj = re.search(r'\d{14}', a_tag['href']).group(0) if re.search(r'\d{14}', a_tag['href']) else None
-            if not company_cnpj:
-                print("CNPJ não encontrado na tag <a> ou URL inválida:")
-                print(a_tag.prettify() if a_tag else "Tag <a> não encontrada")
-            
-            
-            company_city = None
-            location_tag = li_tag.find('svg', {'use': re.compile(r'#location')})
-            
-            
-            if location_tag:
-                city_tag = location_tag.find_parent('p')
-                if city_tag:
-                    
-                    for svg in city_tag.find_all('svg'):
-                        svg.extract()
-                    city_text = city_tag.get_text(strip=True)
-                    company_city = city_text.replace('\n', '').strip()
-            
-            
-            if not company_city:
-                potential_city_tags = li_tag.find_all('p', class_=re.compile(r'text-gray-500'))
-                for tag in potential_city_tags:
-                    if re.search(r'[A-Za-z]+/[A-Za-z]{2}', tag.get_text()):
-                        company_city = tag.get_text(strip=True)
-                        break  
-            
-            
-            if not company_city and location_tag:
-                next_sibling = location_tag.find_next_sibling(text=True)
-                if next_sibling and re.search(r'[A-Za-z]+/[A-Za-z]{2}', next_sibling.strip()):
-                    company_city = next_sibling.strip()
-
-            
-            if not company_city:
-                all_p_tags = li_tag.find_all('p')
-                for tag in all_p_tags:
-                    if re.search(r'[A-Za-z]+/[A-Za-z]{2}', tag.get_text()):
-                        company_city = tag.get_text(strip=True)
-                        break
-            
-            if not company_city:
-                print("Cidade não encontrada para a empresa:")
-                print(li_tag.prettify()) 
-
-            print("company_name",company_name)
-            print("company_status",company_status)
-            print("company_cnpj",company_cnpj)
-            print("company_city",company_city)
-            print("google_id",google_id)
-
-            if company_city:
-               # Usando regex para remover "/SP" ou outras partes que começam com '/'
-                    company_city_cleaned = re.sub(r'/.*', '', company_city).strip()
-            else:
-                company_city_cleaned = company_city
-
-            search_city_cleaned = search_city.strip()
-            print(f"Comparando {company_city_cleaned} com {search_city_cleaned}")
-            if company_status == "ATIVA" and company_city_cleaned == search_city_cleaned:
-                        print("if company_status entrou")
-                        company_data = {
-                            'company_name': company_name,
-                            'company_cnpj': company_cnpj,
-                            'company_city': company_city,
-                            'company_status': company_status,
-                            'google_id': google_id 
-                        }
-                        companies.append(company_data)
-                
-
-        return companies
-
+        async with aiohttp.ClientSession() as session:
+            async with session.get(api_url) as response:
+                if response.status == 200:
+                    cnpj_data = await response.json()
+                    if cnpj_data:
+                        return cnpj_data
+                    else:
+                        print("No valid CNPJ data found") 
+                        return None
+                else:
+                    print(f"Erro ao consultar CNPJ: {response.status} - {await response.text()}")
+                    return None
     except Exception as e:
-        print(f"Ocorreu um erro: {e}")
+        print(f"Erro ao consultar API de CNPJ: {e}")
+        return None
 
-def send_to_rabbitmq(companies):
+async def send_to_rabbitmq(companies):
     """Envia os dados das empresas para o RabbitMQ."""
-    print("enviando companie para o rabbit",companies)
-    connection = setup_rabbitmq()  # Função que já existe para conectar ao RabbitMQ
-    channel = setup_channel(connection)  # Função que já existe para configurar o canal
-    exchange_name = 'companies_exchange'  # Nome do exchange que a API irá consumir
-
-    channel.confirm_delivery()
+    print("Enviando empresas para o RabbitMQ", companies)
+    connection = setup_rabbitmq()
+    channel = setup_channel(connection)
+    exchange_name = 'companies_exchange'
 
     for company in companies:
         message = json.dumps(company)
-
         try:
             channel.basic_publish(
                 exchange=exchange_name,
                 routing_key='',
                 body=message,
                 properties=pika.BasicProperties(
-                    delivery_mode=2,  
+                    delivery_mode=2,
                 )
             )
             print(f"Dados da empresa enviados: {company}")
-
         except pika.exceptions.UnroutableError:
             print(f"Erro ao publicar a mensagem: {company}")
             continue
 
     connection.close()
 
-def consume_confirmation_from_scrapper(connection):
-    """Consume mensagens de confirmação do RabbitMQ."""
-    print("started Received confirmation consume_confirmation_from_scrapper")
-    channel = connection.channel()
+async def process_company_data(company_data, google_id, search_city):
+    """Processa os dados da empresa e adiciona as informações detalhadas."""
+    cnpj = company_data.get('company_cnpj')
+    if cnpj:
+        cnpj_data = await fetch_cnpj_data(cnpj)
+        company_data['cnpj_details'] = cnpj_data
+        if cnpj_data:
+            company_data['cnpj_details'] = cnpj_data
+            print("cnpj_data", cnpj_data)
+            print("cnpj_data",cnpj_data)
+            company_city_cleaned = re.sub(r'/.*', '', company_data.get('company_city', '')).strip()
+            search_city_cleaned = search_city.strip()
 
-    confirmation_queue = 'scrapper_confirmation_queue'
-    confirmation_exchange = 'scrapper_exchange'
+        if company_data['company_status'] == "ATIVA" and company_city_cleaned == search_city_cleaned:
+            return company_data
+    return None
 
-    channel.exchange_declare(exchange=confirmation_exchange, exchange_type='fanout', durable=True)
-
-    def callback_confirmation(ch, method, properties, body):
-        """Callback function for confirmation messages."""
-        confirmation_data = json.loads(body)
-        google_id = confirmation_data.get("googleId")
-        status = confirmation_data.get("status")
-
-        print(f"Received confirmation for Google ID: {google_id} with status: {status}")
-        response_message = json.dumps({
-            'googleId': google_id,
-            'status': 'processed'
-        })
-        try:
-            channel.basic_publish(
-                exchange=confirmation_exchange,
-                routing_key='',
-                body=response_message,
-                properties=pika.BasicProperties(
-                    delivery_mode=2,  # Tornar a mensagem persistente
-                )
-            )
-            print(f"Confirmação de processamento enviada: {response_message}")
-        except pika.exceptions.UnroutableError:
-            print(f"Erro ao enviar a confirmação de processamento para Google ID: {google_id}")
-
-    # Start consuming confirmations
-    channel.basic_consume(queue=confirmation_queue, on_message_callback=callback_confirmation, auto_ack=True)
-
-    print(" [*] Waiting for confirmations. To exit press CTRL+C")
-    channel.start_consuming()
-
-
-def callback(ch, method, properties, body):
-    """Processa mensagens da fila RabbitMQ e realiza buscas."""
+async def parse_company_data(html_data, google_id, search_city):
+    """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
     try:
-        lead_data = json.loads(body)
-        print(f"Lead Data: {json.dumps(lead_data, indent=4, ensure_ascii=False)}")
+        
+        if html_data is not None:
+            soup = BeautifulSoup(html_data, 'html.parser')
+            li_tags = soup.find_all('li')
 
-        name = lead_data.get('Name')
-        city = lead_data.get('City')
-        google_id = lead_data.get('PlaceID')
+            companies = []
+            tasks = []
 
-        sanitized_name = sanitize_input(name)
-        sanitized_city = sanitize_input(city)
+            for li_tag in li_tags:
+                company_name_tag = li_tag.find('p', class_=re.compile(r'text-lg'))
+                company_name = company_name_tag.get_text(strip=True) if company_name_tag else None
 
-        if isinstance(name, str) and isinstance(city, str) and name.strip() and city.strip():
-            print(f"Buscando informações para: {name}, {city}")
-            
+                company_status = None
+                if "ATIVA" in li_tag.get_text():
+                    company_status = "ATIVA"
+                elif "BAIXADA" in li_tag.get_text():
+                    company_status = "BAIXADA"
+                elif "INAPTA" in li_tag.get_text():
+                    company_status = "INAPTA"
+
+                a_tag = li_tag.find('a', href=True)
+                company_cnpj = re.search(r'\d{14}', a_tag['href']).group(0) if a_tag and re.search(r'\d{14}', a_tag['href']) else None
+
+                location_tag = li_tag.find('svg', {'use': re.compile(r'#location')})
+                company_city = None
+                if location_tag:
+                    city_tag = location_tag.find_parent('p')
+                    if city_tag:
+                        for svg in city_tag.find_all('svg'):
+                            svg.extract()
+                        company_city = city_tag.get_text(strip=True).replace('\n', '').strip()
+
+                company_data = {
+                    'company_name': company_name,
+                    'company_cnpj': company_cnpj,
+                    'company_city': company_city,
+                    'company_status': company_status,
+                    'google_id': google_id
+                }
+
+                # Adicionando a tarefa para processar a empresa
+                task = asyncio.create_task(process_company_data(company_data, google_id, search_city))
+                tasks.append(task)
+
+            # Aguardando todas as tarefas serem concluídas
+            results = await asyncio.gather(*tasks)
+
+            # Filtrando empresas válidas (não nulas)
+            valid_companies = [company for company in results if company]
+
+            return valid_companies
+        else:
+            print("No HTML data found")  # Added check for invalid HTML data
+            return []
+    except Exception as e:
+        print(f"Ocorreu um erro: {e}")
+        return []
+
+async def handle_lead_data(lead_data):
+    """Processa os dados de lead e busca as informações da empresa."""
+    name = lead_data.get('Name')
+    city = lead_data.get('City')
+    google_id = lead_data.get('PlaceID')
+
+    if name and city:
+        try:
             
             api_key = os.getenv('RAPIDAPI_KEY')
-            search_url = f"https://cnpj.biz/procura/{quote(sanitized_name)}%20{quote(sanitized_city)}"
-            
-            print(f"Buscando na API a URL: {search_url}")
-            try:
-                response_data = fetch_data_from_api(api_key, search_url)
-                companies_info = parse_company_data(response_data, google_id,city)
-                print(f"Detalhes das Empresas: antes do if{json.dumps(companies_info, indent=4, ensure_ascii=False)}")
-                if companies_info:
-                    print(f"Detalhes das Empresas: {json.dumps(companies_info, indent=4, ensure_ascii=False)}")
-                    send_to_rabbitmq(companies_info)
-                else:
-                    print("Nenhuma informação de empresa encontrada.")
+            search_url = f"https://cnpj.biz/procura/{quote(name)}%20{quote(city)}"
+            response_data = await fetch_data_from_api(api_key, search_url)
+            companies_info = await parse_company_data(response_data, google_id, city)
 
-            except Exception as e:
-                print(f"Erro ao buscar dados da API: {str(e)}")
-                companies_info = []
-            
+            if companies_info:
+                # 2. Chama a API Google Serper, utilizando as informações obtidas da consulta anterior
+                print(f"Chamando a API Google Serper para {name}, {city}")
+                serper_response = await fetch_serper_data(name, city)
+                print(f"Resposta da API Google Serper: {serper_response}")
 
-        else:
-            print("Nome ou Cidade não encontrados no lead.")
-    except json.JSONDecodeError as e:
-        print(f"Erro ao decodificar JSON: {e}")
+                # 3. Combine dados do Serper, do CNPJ.biz e os detalhes de CNPJ em uma única estrutura
+                for company in companies_info:
+                    # Obtém detalhes completos do CNPJ
+                    cnpj = company.get('company_cnpj')
+                    if cnpj:
+                        cnpj_details = await fetch_cnpj_data(cnpj)
+                        company['cnpj_details'] = cnpj_details
 
-def consume_scrapper_queue(connection):
-    # Abra um canal separado para scrapper_queue
-    channel = connection.channel()
+                combined_data = {
+                    'serper_data': json.loads(serper_response),  # Dados da API Google Serper
+                    'companies_info': companies_info  # Informações da API de CNPJ com detalhes de CNPJ
+                }
 
-    # Configura o consumidor para scrapper_queue
-    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
-    
-    print(" [*] Consuming messages from scrapper_queue")
-    channel.start_consuming()
+                # Imprime a estrutura combinada
+                print("Dados combinados de todas as APIs:", json.dumps(combined_data, indent=4, ensure_ascii=False))
 
+                # 4. Envia os dados para o RabbitMQ
+                await send_to_rabbitmq(companies_info)
+            else:
+                print("Nenhuma informação de empresa encontrada.")
+        except Exception as e:
+            print(f"Erro ao buscar dados da API: {str(e)}")
 
 def main():
     """Função principal para iniciar o serviço de scraping de leads."""
@@ -327,20 +253,14 @@ def main():
     channel = setup_channel(connection)
 
     print(" [*] Esperando por mensagens. Para sair pressione CTRL+C")
-    
 
-    consume_scrapper_queue(connection)
-    
-    consume_confirmation_from_scrapper(channel)
+    def callback(ch, method, properties, body):
+        """Callback para processar mensagens da fila."""
+        lead_data = json.loads(body)
+        asyncio.run(handle_lead_data(lead_data))
 
-    try:
-         pass
-    except KeyboardInterrupt:
-        print(" [x] Interrompido pelo usuário")
-        channel.stop_consuming()
-    finally:
-        channel.close()
-        connection.close()
+    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
+    channel.start_consuming()
 
 if __name__ == "__main__":
     main()
