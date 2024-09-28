@@ -21,9 +21,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
+
+
 func main() {
 
     log.Println("Starting the service...")
+
+   
+
     err := godotenv.Load()
     if err != nil {
         log.Fatal("Error loading .env file")
@@ -36,11 +41,8 @@ func main() {
 	}
 	defer db.Close()
 
-    log.Println("Starting server on port 8082...")
-	err = http.ListenAndServe(":8082", nil)
-	if err != nil {
-		log.Fatalf("Failed to start HTTP server: %v", err)
-	}
+    
+   
 
     conn, err := connectToRabbitMQ()
 	if err != nil {
@@ -62,36 +64,56 @@ func main() {
     defer ch.Close()
 
     http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
-		categoryID := r.URL.Query().Get("category_id")
-		
-		zipcodeID := r.URL.Query().Get("zipcode_id")
-		radius := r.URL.Query().Get("radius")
+        startSearchHandler(w, r, db, ch)
+    })
 
-		if categoryID == "" || zipcodeID == "" || radius == "" {
-			http.Error(w, "Missing required parameters", http.StatusBadRequest)
-			return
-		}
-
-		
-		radiusInt, err := strconv.Atoi(radius)
-		if err != nil {
-			http.Error(w, "Invalid radius value", http.StatusBadRequest)
-			return
-		}
-
-		err = startSearch(categoryID,  zipcodeID, radiusInt, db, ch)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "Search started successfully for category %s in city %s with radius %d", categoryID, zipcodeID, radiusInt)
-	})
-
-	
-    
+    log.Println("Starting server on port 8082...")
+	err = http.ListenAndServe(":8082", nil)
+	if err != nil {
+		log.Fatalf("Failed to start HTTP server: %v", err)
+	}
    
 }
+
+func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *amqp.Channel) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	categoryID := r.URL.Query().Get("category_id")
+	zipcodeIDString := r.URL.Query().Get("zipcode_id")
+	radius := r.URL.Query().Get("radius")
+
+
+	if categoryID == "" || zipcodeIDString == "" || radius == "" {
+		http.Error(w, "Missing required parameters", http.StatusBadRequest)
+		return
+	}
+
+	radiusInt, err := strconv.Atoi(radius)
+	if err != nil {
+		http.Error(w, "Invalid radius value", http.StatusBadRequest)
+		return
+	}
+
+    zipcodeID, err := strconv.Atoi(zipcodeIDString)
+    if err != nil {
+	http.Error(w, "Invalid zipcode_id value", http.StatusBadRequest)
+	return
+    }
+ 
+    err = startSearch(categoryID, zipcodeID, radiusInt, db, ch)
+    if err != nil {
+    http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
+    return
+}
+
+
+	
+	fmt.Fprintf(w, "Search started for categoryID: %s, zipcodeID: %s, radius: %d", categoryID, zipcodeID, radiusInt)
+}
+
 
 func setupDatabase() (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", "./geo.db")
@@ -178,7 +200,7 @@ func setupDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
-func startSearch(categoryID,  zipcodeID string, radius int, db *sql.DB, ch *amqp.Channel) error {
+func startSearch(categoryID string,  zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
@@ -194,6 +216,13 @@ func startSearch(categoryID,  zipcodeID string, radius int, db *sql.DB, ch *amqp
 	if err != nil {
 		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
 	}
+
+   
+
+    startZip, err := repository.GetFirstZipCodeInRange(db, zipcodeID)
+    if err != nil {
+        return fmt.Errorf("Failed to get location info by zipcode: %v", err)
+    }
 
 	progress := repository.SearchProgress{
 		CategoriaID: categoryID,
@@ -222,7 +251,7 @@ func startSearch(categoryID,  zipcodeID string, radius int, db *sql.DB, ch *amqp
 
     service := googleplaces.NewService(apiKey)
 
-    coordinates, err := service.GeocodeZip(locationInfo.ZipcodeID)
+    coordinates, err := service.GeocodeZip(startZip)
     if err != nil {
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }

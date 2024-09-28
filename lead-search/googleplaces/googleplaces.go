@@ -47,7 +47,7 @@ func (s *Service) GeocodeZip(zipCode string) (string, error) {
 	geocodeURL := "https://maps.googleapis.com/maps/api/geocode/json"
 	resp, err := client.R().
 		SetQueryParams(map[string]string{
-			"zip": zipCode,
+			"address": zipCode,
 			"key":     s.APIKey,
 		}).
 		Get(geocodeURL)
@@ -90,7 +90,8 @@ func (s *Service) GeocodeZip(zipCode string) (string, error) {
 
 func saveNextPageToken(token string) error {
 	
-	err := os.WriteFile("next_page_token.txt", []byte(token), 0644)
+	err := os.WriteFile("/Users/bruno/projects/leads_search/lead-search/next_page_token.txt", []byte(token), 0644)
+
 	if err != nil {
 		log.Printf("Erro ao salvar o next_page_token: %v", err)
 		return err

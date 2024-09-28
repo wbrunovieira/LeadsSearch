@@ -147,7 +147,7 @@ services:
             - RABBITMQ_PORT=5672
         volumes:
             - ./data:/usr/src/app/data
-            - ./next_page_token.txt:/usr/src/app/next_page_token.txt 
+            - /Users/bruno/projects/leads_search/lead-search:/app/lead-search
         depends_on:
             rabbitmq:
                 condition: service_healthy

@@ -19,7 +19,7 @@ type LocationInfo struct {
 }
 
 // Função para buscar todos os IDs e nomes com base no zipcodeID
-func GetLocationInfoByZipcodeID(db *sql.DB, zipcodeID string) (*LocationInfo, error) {
+func GetLocationInfoByZipcodeID(db *sql.DB, zipcodeID int) (*LocationInfo, error) {
 	query := `
 		SELECT 
 			z.id AS zipcode_id, d.id AS district_id, d.name AS district_name,
@@ -46,4 +46,13 @@ func GetLocationInfoByZipcodeID(db *sql.DB, zipcodeID string) (*LocationInfo, er
 		return nil, err
 	}
 	return &location, nil
+}
+
+func GetFirstZipCodeInRange(db *sql.DB, districtID int) (string, error) {
+	var startZip string
+	err := db.QueryRow("SELECT start_zip FROM zipcode WHERE district_id = ?", districtID).Scan(&startZip)
+	if err != nil {
+		return "", err
+	}
+	return startZip, nil
 }
