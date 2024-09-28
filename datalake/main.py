@@ -12,6 +12,8 @@ es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
 channel = connection.channel()
 
+channel.queue_declare(queue='data_queue', durable=True)
+
 # Consome mensagens da fila
 def callback(ch, method, properties, body):
     data = json.loads(body)

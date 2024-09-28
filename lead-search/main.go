@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"lead-search/googleplaces"
+	"lead-search/repository"
 
 	"database/sql"
 
@@ -35,36 +36,7 @@ func main() {
 	}
 	defer db.Close()
 
-    http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
-		categoryID := r.URL.Query().Get("category_id")
-		countryID := r.URL.Query().Get("country_id")
-		stateID := r.URL.Query().Get("state_id")
-		cityID := r.URL.Query().Get("city_id")
-		districtID := r.URL.Query().Get("district_id")
-		radius := r.URL.Query().Get("radius")
-
-		if categoryID == "" || countryID == "" || stateID == "" || cityID == "" || radius == "" {
-			http.Error(w, "Missing required parameters", http.StatusBadRequest)
-			return
-		}
-
-		// Convert radius to int
-		radiusInt, err := strconv.Atoi(radius)
-		if err != nil {
-			http.Error(w, "Invalid radius value", http.StatusBadRequest)
-			return
-		}
-
-		err = startSearch(categoryID, countryID, stateID, cityID, districtID, radiusInt, db, ch)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "Search started successfully for category %s in city %s with radius %d", categoryID, cityID, radiusInt)
-	})
-
-	log.Println("Starting server on port 8082...")
+    log.Println("Starting server on port 8082...")
 	err = http.ListenAndServe(":8082", nil)
 	if err != nil {
 		log.Fatalf("Failed to start HTTP server: %v", err)
@@ -76,60 +48,47 @@ func main() {
 	}
 	defer conn.Close()
 
-    ch, err := conn.Channel()
-    if err != nil {
-        log.Fatalf("Failed to open a channel: %v", err)
-    }
-    defer ch.Close()
-
+   
     apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 
     if apiKey ==  "" {
         log.Fatal("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
     }
 
-    service := googleplaces.NewService(apiKey)
-    city := "Campinas"
-    categoria := "restaurantes"
-    zipCode:= ""
-    
-    radius:= 10000
-
-    coordinates, err := service.GeocodeZip(zipCode)
+    ch, err := conn.Channel()
     if err != nil {
-        log.Fatalf("Failed to get coordinates for city: %v", err)
+        log.Fatalf("Failed to open a channel: %v", err)
     }
+    defer ch.Close()
 
- 
-    maxPages := 1
-    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius,maxPages)
-	if err != nil {
-		log.Fatalf("Erro ao buscar lugares: %v", err)
-	}
+    http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
+		categoryID := r.URL.Query().Get("category_id")
+		
+		zipcodeID := r.URL.Query().Get("zipcode_id")
+		radius := r.URL.Query().Get("radius")
 
-    for _, place := range placeDetailsFromSearch {
-        placeID := place["PlaceID"].(string)
-        placeDetails, err := service.GetPlaceDetails(placeID)
-        if err != nil {
-            log.Printf("Failed to get details for place ID %s: %v", placeID, err)
-            continue
+		if categoryID == "" || zipcodeID == "" || radius == "" {
+			http.Error(w, "Missing required parameters", http.StatusBadRequest)
+			return
+		}
 
-        }
+		
+		radiusInt, err := strconv.Atoi(radius)
+		if err != nil {
+			http.Error(w, "Invalid radius value", http.StatusBadRequest)
+			return
+		}
 
-        for k, v := range place {
-            placeDetails[k] = v
-        }
+		err = startSearch(categoryID,  zipcodeID, radiusInt, db, ch)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
+			return
+		}
 
-        placeDetails["Category"] = categoria
-        placeDetails["City"] = city
-        placeDetails["Radius"] = radius
-    
-        
-        err = publishLeadToRabbitMQ(ch, placeDetails)
-        if err != nil {
-            log.Printf("Failed to publish lead to RabbitMQ: %v", err)
-        }
-    }
+		fmt.Fprintf(w, "Search started successfully for category %s in city %s with radius %d", categoryID, zipcodeID, radiusInt)
+	})
+
+	
     
    
 }
@@ -219,53 +178,96 @@ func setupDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
-func startSearch(categoryID, countryID, stateID, cityID, districtID string, radius int, db *sql.DB, ch *amqp.Channel) error {
+func startSearch(categoryID,  zipcodeID string, radius int, db *sql.DB, ch *amqp.Channel) error {
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
-
 	if apiKey == "" {
 		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
 	}
 
-	service := googleplaces.NewService(apiKey)
-
-	// Exemplo: recuperar os dados da cidade, categoria, etc., a partir do banco de dados (você pode adaptar isso conforme necessário)
-	city := cityID // Exemplo: recuperar o nome da cidade pelo ID
-	category := categoryID // Exemplo: recuperar o nome da categoria pelo ID
-
-   
-
-	coordinates, err := service.GeocodeZip(zipCode)
+    categoryName, err := repository.GetCategoryNameByID(db, categoryID)
 	if err != nil {
-		return fmt.Errorf("Failed to get coordinates for city: %v", err)
+		return fmt.Errorf("Failed to get category name: %v", err)
 	}
+  
+
+	locationInfo, err := repository.GetLocationInfoByZipcodeID(db, zipcodeID)
+	if err != nil {
+		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
+	}
+
+	progress := repository.SearchProgress{
+		CategoriaID: categoryID,
+		CountryID:   locationInfo.CountryID,
+		StateID:     locationInfo.StateID,
+		CityID:      locationInfo.CityID,
+		DistrictID:  locationInfo.DistrictID,
+		ZipcodeID:   locationInfo.ZipcodeID,
+		Radius:      radius,
+		SearchDone:  0, 
+	}
+
+	progressID, err := repository.InsertSearchProgress(db, progress)
+	if err != nil {
+		return fmt.Errorf("Failed to insert search progress: %v", err)
+	}
+
+    cityName, err := repository.GetCityNameByID(db, locationInfo.CityID)
+    if err != nil {
+        return fmt.Errorf("Failed to get city name: %v", err)
+    }
+
+	log.Printf("Search progress inserted with ID: %d", progressID)
 
 	maxPages := 1
-	placeDetailsFromSearch, err := service.SearchPlaces(category, coordinates, radius, maxPages)
-	if err != nil {
-		return fmt.Errorf("Error fetching places: %v", err)
-	}
 
-	for _, place := range placeDetailsFromSearch {
-		placeID := place["PlaceID"].(string)
-		placeDetails, err := service.GetPlaceDetails(placeID)
+    service := googleplaces.NewService(apiKey)
+
+    coordinates, err := service.GeocodeZip(locationInfo.ZipcodeID)
+    if err != nil {
+        log.Fatalf("Failed to get coordinates for city: %v", err)
+    }
+
+
+	for currentPage := 1; currentPage <= maxPages; currentPage++ {
+		log.Printf("Iniciando busca na página %d para a categoria %s na cidade %s", currentPage, categoryName, locationInfo.CityName)
+
+		placeDetailsFromSearch,  err := service.SearchPlaces(categoryName, coordinates, radius,maxPages)
 		if err != nil {
-			log.Printf("Failed to get details for place ID %s: %v", placeID, err)
-			continue
+			return fmt.Errorf("Error fetching places: %v", err)
 		}
 
-		placeDetails["Category"] = category
-		placeDetails["City"] = city
-		placeDetails["Radius"] = radius
+		
+		for _, place := range placeDetailsFromSearch {
+			placeID := place["PlaceID"].(string)
+			placeDetails, err := service.GetPlaceDetails(placeID)
+			if err != nil {
+				log.Printf("Failed to get details for place ID %s: %v", placeID, err)
+				continue
+			}
 
-		err = publishLeadToRabbitMQ(ch, placeDetails)
-		if err != nil {
-			log.Printf("Failed to publish lead to RabbitMQ: %v", err)
+			placeDetails["Category"] = categoryName
+			placeDetails["City"] = cityName
+			placeDetails["Radius"] = radius
+
+			err = publishLeadToRabbitMQ(ch, placeDetails)
+			if err != nil {
+				log.Printf("Failed to publish lead to RabbitMQ: %v", err)
+			}
 		}
+
+		// Atualizar o progresso da busca (número da página atual)
+		err = repository.UpdateSearchProgressPage(db, progressID, currentPage)
+		if err != nil {
+			return fmt.Errorf("Failed to update search progress: %v", err)
+		}
+
+		log.Printf("Search progress updated: page %d completed", currentPage)
+
+	
 	}
 
 	return nil
 }
-
 
 func getFirstZipCodeInRange(db *sql.DB, districtID int) (string, error) {
 	var startZip string
