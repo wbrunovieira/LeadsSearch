@@ -1,58 +1,17 @@
 version: "3.8"
 
 services:
-    api:
-        build: ./api
+    # Serviços Fundamentais
+    rabbitmq:
+        image: "rabbitmq:3-management"
         ports:
-            - "8085:8085"
-
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-            - PORT=8085
-
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-            db:
-                condition: service_healthy
-
+            - "5672:5672"
+            - "15672:15672"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-        networks:
-            - leads-network
-
-    data-procesor:
-        build: ./data-processor
-        ports:
-            - "8081:8081"
-        environment:
-            - PORT=8081
-
-        depends_on:
-            - db
-        networks:
-            - leads-network
-
-    lead-search:
-        build: ./lead-search
-        ports:
-            - "8082:8082"
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
+            test: ["CMD", "rabbitmqctl", "status"]
+            interval: 60s
+            timeout: 30s
+            retries: 10
         networks:
             - leads-network
 
@@ -75,17 +34,61 @@ services:
         networks:
             - leads-network
 
-    ai:
-        build: ./ai_service
-        volumes:
-            - ./ai:/app/src
-
-        depends_on:
-            - db
-        command: ["python", "main.py"]
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+        ports:
+            - "9200:9200"
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
         networks:
             - leads-network
 
+    kibana:
+        image: docker.elastic.co/kibana/kibana:7.9.2
+        ports:
+            - "5601:5601"
+        environment:
+            - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+        depends_on:
+            - elasticsearch
+        networks:
+            - leads-network
+
+    # Serviços de Armazenamento e Processamento de Dados
+    datalake:
+        build: ./datalake
+        environment:
+            - ELASTICSEARCH_HOST=elasticsearch
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            db:
+                condition: service_healthy
+            elasticsearch:
+                condition: service_healthy
+        networks:
+            - leads-network
+
+    data-processor:
+        build: ./data-processor
+        ports:
+            - "8081:8081"
+        environment:
+            - PORT=8081
+        depends_on:
+            - db
+        networks:
+            - leads-network
+
+    # Serviços de Scraping e Fetching
     scrapper:
         build: ./scrapper
         environment:
@@ -99,20 +102,67 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-
         networks:
             - leads-network
 
-    rabbitmq:
-        image: "rabbitmq:3-management"
+    linkfetcher:
+        build: ./link-fetcher
+        environment:
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+        networks:
+            - leads-network
+
+    # Serviços de API e Inteligência Artificial
+    api:
+        build: ./api
         ports:
-            - "5672:5672"
-            - "15672:15672"
+            - "8085:8085"
+        environment:
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+            - PORT=8085
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+            db:
+                condition: service_healthy
         healthcheck:
-            test: ["CMD", "rabbitmqctl", "status"]
-            interval: 30s
-            timeout: 10s
+            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+            interval: 10s
+            timeout: 5s
             retries: 5
+        networks:
+            - leads-network
+
+    lead-search:
+        build: ./lead-search
+        ports:
+            - "8082:8082"
+        environment:
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - leads-network
+
+    ai:
+        build: ./ai_service
+        volumes:
+            - ./ai:/app/src
+        depends_on:
+            - db
+        command: ["python", "main.py"]
         networks:
             - leads-network
 
