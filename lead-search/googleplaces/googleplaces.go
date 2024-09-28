@@ -3,7 +3,9 @@ package googleplaces
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -37,15 +39,15 @@ func NewService(apiKey string) *Service {
 	return &Service{APIKey: apiKey}
 }
 
-func (s *Service) GeocodeCity(city string) (string, error) {
-	log.Printf("Buscando coordenadas para a cidade: %s", city)
+func (s *Service) GeocodeZip(zipCode string) (string, error) {
+	log.Printf("Buscando coordenadas para o zipCode: %s", zipCode)
 
 	client := resty.New()
 
 	geocodeURL := "https://maps.googleapis.com/maps/api/geocode/json"
 	resp, err := client.R().
 		SetQueryParams(map[string]string{
-			"address": city,
+			"zip": zipCode,
 			"key":     s.APIKey,
 		}).
 		Get(geocodeURL)
@@ -82,7 +84,36 @@ func (s *Service) GeocodeCity(city string) (string, error) {
 		return fmt.Sprintf("%f,%f", lat, lng), nil
 	}
 
-	return "", fmt.Errorf("no results found for city: %s", city)
+	return "", fmt.Errorf("no results found for zipCode: %s", zipCode)
+}
+
+
+func saveNextPageToken(token string) error {
+	
+	err := os.WriteFile("next_page_token.txt", []byte(token), 0644)
+	if err != nil {
+		log.Printf("Erro ao salvar o next_page_token: %v", err)
+		return err
+	}
+	log.Println("next_page_token salvo com sucesso")
+	return nil
+}
+
+func LoadNextPageToken() (string, error) {
+	file, err := os.Open("next_page_token.txt")
+	if err != nil {
+		log.Printf("Erro ao abrir o arquivo next_page_token: %v", err)
+		return "", err
+	}
+	defer file.Close()
+
+	tokenBytes, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	token := string(tokenBytes)
+	log.Printf("next_page_token carregado: %s", token)
+	return token, nil
 }
 
 
@@ -92,7 +123,10 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
     url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
     var allPlaces []map[string]interface{}
-    pageToken := ""
+    pageToken, err := LoadNextPageToken()  
+	if err != nil {
+		return nil, fmt.Errorf("erro ao carregar next_page_token: %v", err)
+	}
     pagesFetched := 0
 	totalResults := 0
 
@@ -152,12 +186,24 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
             pagesFetched++
 			
 			log.Printf("Página %d obtida, total de resultados até agora: %d", pagesFetched, totalResults)
-            if result.NextPageToken == "" || pagesFetched >= maxPages {
-                break
-            }
+            if result.NextPageToken != "" {
+				err := saveNextPageToken(result.NextPageToken)
+				if err != nil {
+					log.Printf("Erro ao salvar o next_page_token: %v", err)
+				}
+			} else {
+				
+				saveNextPageToken("")
+				break
+			}
+
+            if pagesFetched >= maxPages {
+				break
+			}
 
             
             time.Sleep(2 * time.Second)
+
             pageToken = result.NextPageToken
         } else {
             return nil, fmt.Errorf("failed to get data: %v", resp.Status())

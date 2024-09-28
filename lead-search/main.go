@@ -3,12 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+
 	"log"
+	"net/http"
 	"os"
 	"time"
 
 	"lead-search/googleplaces"
 
+	"database/sql"
+
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/streadway/amqp"
 
 	"github.com/joho/godotenv"
@@ -22,6 +28,47 @@ func main() {
         log.Fatal("Error loading .env file")
     }
     log.Println(".env file loaded successfully")
+
+    db, err := setupDatabase()
+	if err != nil {
+		log.Fatalf("Erro ao configurar o banco de dados: %v", err)
+	}
+	defer db.Close()
+
+    http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
+		categoryID := r.URL.Query().Get("category_id")
+		countryID := r.URL.Query().Get("country_id")
+		stateID := r.URL.Query().Get("state_id")
+		cityID := r.URL.Query().Get("city_id")
+		districtID := r.URL.Query().Get("district_id")
+		radius := r.URL.Query().Get("radius")
+
+		if categoryID == "" || countryID == "" || stateID == "" || cityID == "" || radius == "" {
+			http.Error(w, "Missing required parameters", http.StatusBadRequest)
+			return
+		}
+
+		// Convert radius to int
+		radiusInt, err := strconv.Atoi(radius)
+		if err != nil {
+			http.Error(w, "Invalid radius value", http.StatusBadRequest)
+			return
+		}
+
+		err = startSearch(categoryID, countryID, stateID, cityID, districtID, radiusInt, db, ch)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "Search started successfully for category %s in city %s with radius %d", categoryID, cityID, radiusInt)
+	})
+
+	log.Println("Starting server on port 8082...")
+	err = http.ListenAndServe(":8082", nil)
+	if err != nil {
+		log.Fatalf("Failed to start HTTP server: %v", err)
+	}
 
     conn, err := connectToRabbitMQ()
 	if err != nil {
@@ -44,17 +91,21 @@ func main() {
     service := googleplaces.NewService(apiKey)
     city := "Campinas"
     categoria := "restaurantes"
+    zipCode:= ""
+    
     radius:= 10000
 
-    coordinates, err := service.GeocodeCity(city)
+    coordinates, err := service.GeocodeZip(zipCode)
     if err != nil {
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }
+
+ 
     maxPages := 1
-    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius, maxPages)
-    if err != nil {
-        log.Fatalf("Failed to search places: %v", err)
-    }
+    placeDetailsFromSearch, err := service.SearchPlaces(categoria, coordinates, radius,maxPages)
+	if err != nil {
+		log.Fatalf("Erro ao buscar lugares: %v", err)
+	}
 
     for _, place := range placeDetailsFromSearch {
         placeID := place["PlaceID"].(string)
@@ -82,6 +133,150 @@ func main() {
     
    
 }
+
+func setupDatabase() (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", "./geo.db")
+	if err != nil {
+		return nil, err
+	}
+
+	// Create tables
+	createTablesSQL := `
+		CREATE TABLE IF NOT EXISTS country (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			name TEXT
+		);
+
+		CREATE TABLE IF NOT EXISTS state (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			name TEXT, 
+			country_id INTEGER, 
+			status INTEGER DEFAULT 0, -- campo de status
+			FOREIGN KEY(country_id) REFERENCES country(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS city (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			name TEXT, 
+			state_id INTEGER, 
+			status INTEGER DEFAULT 0, -- campo de status
+			FOREIGN KEY(state_id) REFERENCES state(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS district (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			name TEXT, 
+			city_id INTEGER, 
+			status INTEGER DEFAULT 0, -- campo de status
+			FOREIGN KEY(city_id) REFERENCES city(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS zipcode (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			start_zip TEXT, 
+			end_zip TEXT, 
+			district_id INTEGER, 
+			status INTEGER DEFAULT 0, -- campo de status
+			FOREIGN KEY(district_id) REFERENCES district(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS radius (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			radius INTEGER
+		);
+
+		CREATE TABLE IF NOT EXISTS categoria (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			nome TEXT, 
+			status INTEGER DEFAULT 0 -- campo de status
+		);
+
+		CREATE TABLE IF NOT EXISTS search_progress (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			categoria_id INTEGER,
+			country_id INTEGER,
+			state_id INTEGER,
+			city_id INTEGER,
+			district_id INTEGER,
+			zipcode_id INTEGER,
+			search_done INTEGER DEFAULT 0, -- campo para indicar se a pesquisa foi concluída
+			search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- data de criação
+			FOREIGN KEY(categoria_id) REFERENCES categoria(id),
+			FOREIGN KEY(country_id) REFERENCES country(id),
+			FOREIGN KEY(state_id) REFERENCES state(id),
+			FOREIGN KEY(city_id) REFERENCES city(id),
+			FOREIGN KEY(district_id) REFERENCES district(id),
+			FOREIGN KEY(zipcode_id) REFERENCES zipcode(id)
+		);
+	`
+
+	_, err = db.Exec(createTablesSQL)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("Database setup completed")
+	return db, nil
+}
+
+func startSearch(categoryID, countryID, stateID, cityID, districtID string, radius int, db *sql.DB, ch *amqp.Channel) error {
+	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
+
+	if apiKey == "" {
+		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
+	}
+
+	service := googleplaces.NewService(apiKey)
+
+	// Exemplo: recuperar os dados da cidade, categoria, etc., a partir do banco de dados (você pode adaptar isso conforme necessário)
+	city := cityID // Exemplo: recuperar o nome da cidade pelo ID
+	category := categoryID // Exemplo: recuperar o nome da categoria pelo ID
+
+   
+
+	coordinates, err := service.GeocodeZip(zipCode)
+	if err != nil {
+		return fmt.Errorf("Failed to get coordinates for city: %v", err)
+	}
+
+	maxPages := 1
+	placeDetailsFromSearch, err := service.SearchPlaces(category, coordinates, radius, maxPages)
+	if err != nil {
+		return fmt.Errorf("Error fetching places: %v", err)
+	}
+
+	for _, place := range placeDetailsFromSearch {
+		placeID := place["PlaceID"].(string)
+		placeDetails, err := service.GetPlaceDetails(placeID)
+		if err != nil {
+			log.Printf("Failed to get details for place ID %s: %v", placeID, err)
+			continue
+		}
+
+		placeDetails["Category"] = category
+		placeDetails["City"] = city
+		placeDetails["Radius"] = radius
+
+		err = publishLeadToRabbitMQ(ch, placeDetails)
+		if err != nil {
+			log.Printf("Failed to publish lead to RabbitMQ: %v", err)
+		}
+	}
+
+	return nil
+}
+
+
+func getFirstZipCodeInRange(db *sql.DB, districtID int) (string, error) {
+	var startZip string
+	err := db.QueryRow("SELECT start_zip FROM zipcode WHERE district_id = ?", districtID).Scan(&startZip)
+	if err != nil {
+		return "", err
+	}
+	return startZip, nil
+}
+
+
 func publishLeadToRabbitMQ(ch *amqp.Channel, leadData map[string]interface{}) error {
     exchangeName := "leads_exchange"
 

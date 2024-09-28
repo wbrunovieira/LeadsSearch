@@ -145,6 +145,9 @@ services:
         environment:
             - RABBITMQ_HOST=rabbitmq
             - RABBITMQ_PORT=5672
+        volumes:
+            - ./data:/usr/src/app/data
+            - ./next_page_token.txt:/usr/src/app/next_page_token.txt 
         depends_on:
             rabbitmq:
                 condition: service_healthy
