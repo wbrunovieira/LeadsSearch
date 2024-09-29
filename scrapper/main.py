@@ -287,16 +287,23 @@ async def handle_lead_data(lead_data):
             combined_data = {
                 'serper_data': None,
                 'companies_info': companies_info,
-                'cnpj_details': None
+                'cnpj_details': []
             }
             if companies_info:
                 for company in companies_info:
                     cnpj = company.get('company_cnpj')
-                    print(" dentro do handle achou o cnpj do companies_info:",cnpj)
+                    print("dentro do handle achou o cnpj do companies_info:",cnpj)
                     if cnpj:
                         print(f"[LOG] Consultando API de CNPJ para {company['company_name']} com CNPJ: {cnpj}")
-                        cnpj_details = await fetch_cnpj_data(cnpj)
-                        company['cnpj_details'] = cnpj_details
+                        cnpj_details = await fetch_cnpj_data(cnpj) 
+
+                        if cnpj_details not in combined_data['cnpj_details']:
+                            company['cnpj_details'] = cnpj_details
+                            combined_data['cnpj_details'].append(cnpj_details)
+                            print(f"[LOG] Detalhes do CNPJ adicionados: {cnpj_details}")
+                        
+                    else:
+                        print(f"[LOG] Detalhes do CNPJ não encontrados para {company['company_name']}")
 
 
             
