@@ -57,6 +57,7 @@ func sendConfirmationToScrapper(googleId string) error {
     log.Printf("Confirmação enviada para o scrapper: %v", message)
     return nil
 }
+
 func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	exchangeName := "companies_exchange"
 	queueName := "companies_queue"
@@ -76,7 +77,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 
 	q, err := ch.QueueDeclare(
 		queueName,
-		true, // Durable
+		true,  // Durable
 		false, // Delete when unused
 		false, // Exclusive
 		false, // No-wait
@@ -112,23 +113,72 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 
 	go func() {
 		for d := range msgs {
-			var companyData map[string]interface{}
-			err := json.Unmarshal(d.Body, &companyData)
+
+            log.Printf("Mensagem recebida em formato bruto consumeCompaniesFromRabbitMQ: %v", d.Body)
+
+            log.Printf("Mensagem recebida do RabbitMQ pelo consumeCompaniesFromRabbitMQ: %s", string(d.Body))
+
+
+			
+
+			var combinedData map[string]interface{}
+
+			err := json.Unmarshal(d.Body, &combinedData)
 			if err != nil {
-				log.Printf("Error decoding JSON: %v", err)
+				log.Printf("Erro ao decodificar JSON: %v", err)
 				continue
 			}
 
-			// Salvar no banco de dados
-			err = saveCompanyData(companyData)
-			if err != nil {
-				log.Printf("Failed to save company: %v", err)
+			companiesInfo, ok := combinedData["companies_info"].([]interface{})
+			if !ok {
+				log.Printf("companies_info não encontrado na mensagem: %v", combinedData)
+				continue
+			}
+
+			
+
+			// Itera sobre a lista de companies_info e salva cada uma no banco de dados
+			for _, companyInfo := range companiesInfo {
+				companyMap, ok := companyInfo.(map[string]interface{})
+				if !ok {
+					log.Printf("Erro ao converter companyInfo para map: %v", companyInfo)
+					continue
+				}
+                print("companyMap aqui",companyMap)
+
+				// Salvar no banco de dados
+				err = saveCompanyData(companyMap)
+				if err != nil {
+					log.Printf("Falha ao salvar empresa: %v", err)
+				}
+                cnpjDetails, ok := combinedData["cnpj_details"].([]interface{})
+        if !ok {
+            log.Printf("cnpj_details não encontrado ou não é uma lista válida: %v", combinedData)
+            continue
+        }
+
+        // Processar cnpj_details se necessário
+        for _, cnpjDetail := range cnpjDetails {
+            cnpjMap, ok := cnpjDetail.(map[string]interface{})
+            if !ok {
+                log.Printf("Erro ao converter cnpjDetail para map: %v", cnpjDetail)
+                continue
+            }
+            cnpjDetailJSON, err := json.MarshalIndent(cnpjMap, "", "  ")
+            if err != nil {
+            log.Printf("Erro ao serializar detalhes do CNPJ para JSON: %v", err)
+            continue
+            }
+
+            // Aqui você pode decidir o que fazer com os detalhes do CNPJ
+            log.Printf("Detalhes do CNPJ:\n%s", string(cnpjDetailJSON))
+        }
 			}
 		}
 	}()
 
-	log.Println("Consuming companies from RabbitMQ...")
-	select {} // Block forever
+	log.Println("Consumindo empresas do RabbitMQ...")
+	select {} // Block para manter o consumer ativo
 }
 
 func saveCompanyData(data map[string]interface{}) error {
@@ -361,6 +411,7 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
 
     go func() {
         for d := range msgs {
+            log.Printf("Mensagem recebida do RabbitMQ pelo consumeLeadsFromRabbitMQ: %s", string(d.Body))
             var leadData map[string]interface{}
             err := json.Unmarshal(d.Body, &leadData)
             if err != nil {

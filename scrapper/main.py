@@ -118,30 +118,31 @@ async def fetch_cnpj_data(cnpj):
         print(f"Erro ao consultar API de CNPJ: {e}")
         return None
 
-async def send_to_rabbitmq(companies):
+def send_to_rabbitmq(combined_data):
     """Envia os dados das empresas para o RabbitMQ."""
-    print("Enviando empresas para o RabbitMQ", companies)
+    print("Enviando dados combinados para o RabbitMQ", combined_data)
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
     exchange_name = 'companies_exchange'
 
-    for company in companies:
-        message = json.dumps(company)
-        try:
-            channel.basic_publish(
-                exchange=exchange_name,
-                routing_key='',
-                body=message,
-                properties=pika.BasicProperties(
-                    delivery_mode=2,
-                )
+    try:
+        # Serializa o objeto completo de dados combinados
+        message = json.dumps(combined_data)
+        channel.basic_publish(
+            exchange=exchange_name,
+            routing_key='',
+            body=message,
+            properties=pika.BasicProperties(
+                delivery_mode=2,  # Mensagem persistente
             )
-            print(f"Dados da empresa enviados: {company}")
-        except pika.exceptions.UnroutableError:
-            print(f"Erro ao publicar a mensagem: {company}")
-            continue
-
-    connection.close()
+        )
+        print(f"Dados enviados para o RabbitMQ: {combined_data}")
+    except pika.exceptions.UnroutableError as e:
+        print(f"Erro ao publicar a mensagem: {e}")
+    finally:
+        # Fechar a conexão após o envio
+        connection.close()
+        print("Conexão com o RabbitMQ fechada.")
 
 def format_city_name(city_name):
     # Remove qualquer parte após uma barra (/) na cidade
@@ -303,7 +304,7 @@ async def handle_lead_data(lead_data):
                             print(f"[LOG] Detalhes do CNPJ adicionados: {cnpj_details}")
                         
                     else:
-                        print(f"[LOG] Detalhes do CNPJ não encontrados para {company['company_name']}")
+                        print(f"[LOG] Detalhes do CNPJ não encontrados para { ['company_name']}")
 
 
             
@@ -325,7 +326,7 @@ async def handle_lead_data(lead_data):
                 print("Dados combinados de todas as APIs:", json.dumps(combined_data, indent=4, ensure_ascii=False))
 
                 # 4. Envia os dados para o RabbitMQ
-                await send_to_rabbitmq(companies_info)
+                send_to_rabbitmq(combined_data)
             else:
                 print("Nenhuma informação de empresa encontrada da companies_info.",{companies_info})
         except Exception as e:

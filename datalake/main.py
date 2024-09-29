@@ -12,7 +12,7 @@ es = Elasticsearch([{'host': 'elasticsearch', 'port': 9200}])
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
 channel = connection.channel()
 
-channel.queue_declare(queue='data_queue', durable=True)
+channel.queue_declare(queue='scrapper_queue',  on_message_callback=callback, auto_ack=True)
 
 # Consome mensagens da fila
 def callback(ch, method, properties, body):
