@@ -521,7 +521,7 @@ func main() {
 
 	log.Println("Starting API service...")
 
-    _, channel, err := connectToRabbitMQ() // Corrigido para capturar os 3 retornos
+    _, channel, err := connectToRabbitMQ() 
 	if err != nil {
 		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
 	}

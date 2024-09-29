@@ -61,6 +61,14 @@ async def fetch_serper_data(name, city):
     conn.request("POST", "/search", payload, headers)
     res = conn.getresponse()
     data = res.read()
+
+    if res.status != 200:
+            print(f"[LOG] Erro na API Serper. Status: {res.status}, Motivo: {res.reason}")
+            return None
+        
+    print(f"[LOG] Dados recebidos da API Serper: {data.decode('utf-8')}")
+    return data.decode("utf-8")
+
     
     # Retorna o conteúdo decodificado
     return data.decode("utf-8")
@@ -76,6 +84,16 @@ async def fetch_data_from_api(api_key, url):
 
     async with aiohttp.ClientSession() as session:
         async with session.get(api_url, headers=headers) as response:
+            print(f"[LOG] Status da resposta: {response.status}")
+            if response.status == 200:
+                    
+                    response_text = await response.text()
+                    print(f"[LOG] Dados recebidos com sucesso da API: {response_text[:500]}...")  
+                    return response_text
+            else:
+                    
+                    print(f"[LOG] Erro na solicitação: Status {response.status}, motivo: {response.reason}")
+                    return None
             return await response.text()
 
 async def fetch_cnpj_data(cnpj):
@@ -125,22 +143,27 @@ async def send_to_rabbitmq(companies):
 
     connection.close()
 
-async def process_company_data(company_data, google_id, search_city):
-    """Processa os dados da empresa e adiciona as informações detalhadas."""
-    cnpj = company_data.get('company_cnpj')
-    if cnpj:
-        cnpj_data = await fetch_cnpj_data(cnpj)
-        company_data['cnpj_details'] = cnpj_data
-        if cnpj_data:
-            company_data['cnpj_details'] = cnpj_data
-            print("cnpj_data", cnpj_data)
-            print("cnpj_data",cnpj_data)
-            company_city_cleaned = re.sub(r'/.*', '', company_data.get('company_city', '')).strip()
-            search_city_cleaned = search_city.strip()
+def format_city_name(city_name):
+    # Remove qualquer parte após uma barra (/) na cidade
+    city_name = re.sub(r'/.*', '', city_name).strip()
+    
+    # Lista de preposições comuns em português, inglês, italiano e espanhol
+    prepositions = [
+        'da', 'de', 'do', 'das', 'dos', 'e',      # Português
+        'of', 'the', 'and', 'in', 'on',           # Inglês
+        'di', 'del', 'della', 'dei', 'da', 'e',   # Italiano
+        'de', 'del', 'la', 'las', 'y'             # Espanhol
+    ]
 
-        if company_data['company_status'] == "ATIVA" and company_city_cleaned == search_city_cleaned:
-            return company_data
-    return None
+    # Divide a cidade em palavras e aplica a capitalização
+    words = city_name.split()
+    formatted_words = [
+        word.capitalize() if word.lower() not in prepositions else word.lower()
+        for word in words
+    ]
+    
+    # Junta as palavras novamente em uma única string
+    return ' '.join(formatted_words)
 
 async def parse_company_data(html_data, google_id, search_city):
     """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
@@ -164,19 +187,46 @@ async def parse_company_data(html_data, google_id, search_city):
                     company_status = "BAIXADA"
                 elif "INAPTA" in li_tag.get_text():
                     company_status = "INAPTA"
-
+                print(f"achou o status company_status{company_status}")
                 a_tag = li_tag.find('a', href=True)
                 company_cnpj = re.search(r'\d{14}', a_tag['href']).group(0) if a_tag and re.search(r'\d{14}', a_tag['href']) else None
 
+                # Tentativa 1: Usar o ícone de localização SVG (já existente no código)
                 location_tag = li_tag.find('svg', {'use': re.compile(r'#location')})
                 company_city = None
                 if location_tag:
                     city_tag = location_tag.find_parent('p')
                     if city_tag:
                         for svg in city_tag.find_all('svg'):
-                            svg.extract()
+                            svg.extract()  # Remove SVGs
                         company_city = city_tag.get_text(strip=True).replace('\n', '').strip()
+                        print(f"[LOG] Tentativa 1: Cidade encontrada: {company_city}")
+                
+                # Tentativa 2: Verificar se a cidade pode estar dentro de outra div com atributos diferentes
+                if not company_city:
+                    possible_city_tags = li_tag.find_all('p', class_=re.compile(r'text-sm'))
+                    for possible_city_tag in possible_city_tags:
+                        if re.search(r'\b\w+/\w{2}\b', possible_city_tag.get_text()):  # Busca por formato Cidade/UF
+                            company_city = possible_city_tag.get_text(strip=True)
+                            print(f"[LOG] Tentativa 2: Cidade encontrada: {company_city}")
+                            break
 
+                # Tentativa 3: Usar regex no conteúdo de texto total, caso a cidade esteja fora de tags específicas
+                if not company_city:
+                    full_text = li_tag.get_text(separator=" ", strip=True)
+                    match = re.search(r'\b\w+/\w{2}\b', full_text)
+                    if match:
+                        company_city = match.group(0)
+                        print(f"[LOG] Tentativa 3: Cidade encontrada via regex: {company_city}")
+
+                # Tentativa 4: Outro método baseado em estrutura específica
+                if not company_city:
+                    print(f"[LOG] Cidade não encontrada. HTML do bloco: {li_tag}")
+                
+
+                print(f"achou no parse da pagina company_name:{company_name}, company_cnpj:{company_cnpj}, company_city:{company_city}, company_status:{company_status}, google_id:{google_id}")
+                
+                print(f"achou no parse da pagina company_name:{company_name},company_cnpj:{company_cnpj},company_cnpj:{company_cnpj},company_city:{company_city},company_status:{company_status},google_id:{google_id}")
                 company_data = {
                     'company_name': company_name,
                     'company_cnpj': company_cnpj,
@@ -184,57 +234,85 @@ async def parse_company_data(html_data, google_id, search_city):
                     'company_status': company_status,
                     'google_id': google_id
                 }
+                print(f"parceado dados do cnpj biz: {company_data} ")
 
-                # Adicionando a tarefa para processar a empresa
-                task = asyncio.create_task(process_company_data(company_data, google_id, search_city))
-                tasks.append(task)
+                
+                company_city_cleaned = format_city_name(company_city) if company_city else None
+                search_city_cleaned = format_city_name(search_city)
+                print("company_city_cleaned",company_city_cleaned)
+                print("search_city_cleaned",search_city_cleaned)
+                if company_status == "ATIVA" and company_city_cleaned == search_city_cleaned:
+                    company_data = {
+                        'company_name': company_name,
+                        'company_cnpj': company_cnpj,
+                        'company_city': company_city,
+                        'company_status': company_status,
+                        'google_id': google_id,
+                        
+                    }
+                    print("company_data esse e o retorno dentro da parse_company_data",company_data)
 
-            # Aguardando todas as tarefas serem concluídas
-            results = await asyncio.gather(*tasks)
+                    companies.append(company_data)
 
-            # Filtrando empresas válidas (não nulas)
-            valid_companies = [company for company in results if company]
-
-            return valid_companies
+            return companies
         else:
-            print("No HTML data found")  # Added check for invalid HTML data
+            print("[LOG] No HTML data found")
             return []
     except Exception as e:
-        print(f"Ocorreu um erro: {e}")
-        return []
+        print(f"[LOG] Ocorreu um erro: {e}")
+        return []    
+
 
 async def handle_lead_data(lead_data):
     """Processa os dados de lead e busca as informações da empresa."""
     name = lead_data.get('Name')
     city = lead_data.get('City')
     google_id = lead_data.get('PlaceID')
+    print(f"entrou no handle_lead_data com os dados:{name} {city} {google_id}")
 
     if name and city:
-        try:
-            
+        try:            
             api_key = os.getenv('RAPIDAPI_KEY')
-            search_url = f"https://cnpj.biz/procura/{quote(name)}%20{quote(city)}"
-            response_data = await fetch_data_from_api(api_key, search_url)
-            companies_info = await parse_company_data(response_data, google_id, city)
+            print(f"[LOG] para montar url da cnpj.biz Nome: {name}, Cidade: {city}")
 
+            search_url = f"https://cnpj.biz/procura/{quote(name)}%20{quote(city)}"
+            print(f"url para consultar na cnpj.biz: {search_url}")
+            response_data = await fetch_data_from_api(api_key, search_url)
+            print(f"consultou cnpj.biz com {name} {city} ")
+            
+            
+            companies_info = await parse_company_data(response_data, google_id, city)
+            print(f"foi no parse para encontrar as informacoes da empresa e retornou: {companies_info} ")
+
+            combined_data = {
+                'serper_data': None,
+                'companies_info': companies_info,
+                'cnpj_details': None
+            }
             if companies_info:
+                for company in companies_info:
+                    cnpj = company.get('company_cnpj')
+                    print(" dentro do handle achou o cnpj do companies_info:",cnpj)
+                    if cnpj:
+                        print(f"[LOG] Consultando API de CNPJ para {company['company_name']} com CNPJ: {cnpj}")
+                        cnpj_details = await fetch_cnpj_data(cnpj)
+                        company['cnpj_details'] = cnpj_details
+
+
+            
                 # 2. Chama a API Google Serper, utilizando as informações obtidas da consulta anterior
+                
                 print(f"Chamando a API Google Serper para {name}, {city}")
                 serper_response = await fetch_serper_data(name, city)
                 print(f"Resposta da API Google Serper: {serper_response}")
 
-                # 3. Combine dados do Serper, do CNPJ.biz e os detalhes de CNPJ em uma única estrutura
-                for company in companies_info:
-                    # Obtém detalhes completos do CNPJ
-                    cnpj = company.get('company_cnpj')
-                    if cnpj:
-                        cnpj_details = await fetch_cnpj_data(cnpj)
-                        company['cnpj_details'] = cnpj_details
+                if serper_response:
+                    print(f"[LOG] Resposta da API Serper recebida com sucesso para {name}, {city}")
+                    combined_data['serper_data'] = json.loads(serper_response)
+                else:
+                    print(f"[LOG] Resposta da API Serper veio vazia para {name}, {city}")
 
-                combined_data = {
-                    'serper_data': json.loads(serper_response),  # Dados da API Google Serper
-                    'companies_info': companies_info  # Informações da API de CNPJ com detalhes de CNPJ
-                }
+               
 
                 # Imprime a estrutura combinada
                 print("Dados combinados de todas as APIs:", json.dumps(combined_data, indent=4, ensure_ascii=False))
@@ -242,7 +320,7 @@ async def handle_lead_data(lead_data):
                 # 4. Envia os dados para o RabbitMQ
                 await send_to_rabbitmq(companies_info)
             else:
-                print("Nenhuma informação de empresa encontrada.")
+                print("Nenhuma informação de empresa encontrada da companies_info.",{companies_info})
         except Exception as e:
             print(f"Erro ao buscar dados da API: {str(e)}")
 

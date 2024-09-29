@@ -163,7 +163,10 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
                 return nil, fmt.Errorf("error parsing response: %v", err)
             }
 
-            if result.Status != "OK" && result.Status != "ZERO_RESULTS" {
+			if result.Status == "ZERO_RESULTS" {
+                log.Printf("Nenhum resultado encontrado para a consulta: %s", query)
+                break 
+            } else if result.Status != "OK" {
                 return nil, fmt.Errorf("API error: %s, message: %s", result.Status, result.ErrorMessage)
             }
 
