@@ -14,7 +14,7 @@ logging.info("Iniciando o serviço datalake")
 def setup_rabbitmq():
     """Configura a conexão com o RabbitMQ para o datalake."""
     rabbitmq_host = os.getenv('RABBITMQ_HOST', 'rabbitmq')
-    rabbitmq_port = int(os.getenv('RABBITMQ_PORT', 5672))
+    rabbitmq_port = int(os.getenv('RABBITMQ_PORT', '5672'))
     connection = pika.BlockingConnection(
         pika.ConnectionParameters(host=rabbitmq_host, port=rabbitmq_port)
     )
@@ -25,17 +25,21 @@ def setup_channel(connection):
     channel = connection.channel()
     exchange_name = 'companies_exchange'
     
-    # Declara uma nova fila para o datalake
+   
     channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
+
     channel.queue_declare(queue='datalake_queue', durable=True)
     channel.queue_bind(exchange=exchange_name, queue='datalake_queue')
+
+    channel.queue_declare(queue='linkfetcher_queue', durable=True)
+    channel.queue_bind(exchange=exchange_name, queue='linkfetcher_queue')
 
     return channel
 
 def setup_elasticsearch():
     """Configura a conexão com o Elasticsearch."""
     es_host = os.getenv('ELASTICSEARCH_HOST', 'elasticsearch')
-    es_port = int(os.getenv('ELASTICSEARCH_PORT', 9200))
+    es_port = int(os.getenv('ELASTICSEARCH_PORT', '9200'))
     es = Elasticsearch([{'host': es_host, 'port': es_port}])
     
     # Testa a conexão
@@ -44,9 +48,6 @@ def setup_elasticsearch():
         return None
     print("Conectado ao Elasticsearch com sucesso.")
     return es
-
-
-
 
 def setup_redis():
     """Configura a conexão com o Redis."""
@@ -73,7 +74,6 @@ def setup_redis():
         logging.error("Erro ao conectar ao Redis em%s:%s:%s", redis_host,redis_port, e)
         return None
     return redis_client
-
 
 def index_data_to_elasticsearch(es: Elasticsearch, index_name: str, lead_id: str, data: dict):
     """Indexa os dados recebidos no Elasticsearch."""
@@ -105,6 +105,36 @@ def get_lead_id_from_redis(redis_client, google_id):
     except Exception as e:
         print(f"Erro ao buscar Lead ID no Redis: {e}")
         return None
+
+def save_to_elasticsearch(es, lead_id, content):
+    """Salva o conteúdo extraído no Elasticsearch."""
+    try:
+        index_name = "leads_data"
+        document = {
+            "lead_id": lead_id,
+            "content": content
+        }
+        es.index(index=index_name, body=document)
+        logging.info(f"Documento salvo no Elasticsearch: {document}")
+    except Exception as e:
+        logging.error(f"Erro ao salvar no Elasticsearch: {e}")
+
+def process_data_from_link_fetcher(body, es):
+    """Processa os dados da fila 'fecher_link_queue' e salva no Elasticsearch."""
+    try:
+        message = json.loads(body)
+        lead_id = message.get('lead_id')
+        content = message.get('content')
+        print("message lead_id ,content",message,lead_id,content)
+        
+        if lead_id and content:
+            save_to_elasticsearch(es, lead_id, content)
+        else:
+            logging.error(f"Mensagem inválida recebida do link fetcher: {message}")
+    except json.JSONDecodeError:
+        logging.error("Erro ao decodificar JSON na fila 'fecher_link_queue'.")  
+    except Exception as e:
+        logging.error(f"Erro ao processar a mensagem da fila 'fecher_link_queue': {e}")
 
 def process_data_from_scrapper(body, es, redis_client):
     """Processa os dados recebidos do scrapper, busca o lead_id no Redis e salva no Elasticsearch."""
@@ -151,31 +181,38 @@ def process_data_from_scrapper(body, es, redis_client):
         print(f"Erro no processamento de dados: {e}")
 
 def main():
-    """Função principal para iniciar o datalake."""
-    # Configura o RabbitMQ
-    connection = setup_rabbitmq()
-    channel = setup_channel(connection)
 
-    # Configura o Elasticsearch
     es = setup_elasticsearch()
     if not es:
         print("Encerrando o serviço devido à falha de conexão com o Elasticsearch.")
         return
-    
+
     redis_client = setup_redis()
     if not redis_client:
         print("Encerrando o serviço devido à falha de conexão com o Redis.")
         return
+    
+    connection = setup_rabbitmq()
+    channel = setup_channel(connection)
 
-    print(" [*] Esperando por mensagens no datalake. Para sair pressione CTRL+C")
 
-    def callback(ch, method, properties, body):
+    def datalake_callback(ch, method, properties, body):
         """Callback para processar mensagens da fila."""
         process_data_from_scrapper(body, es, redis_client)
 
-    # Consome as mensagens da fila 'datalake_queue'
-    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=True)
+    def linkfetcher_callback(ch, method, properties, body):
+        process_data_from_link_fetcher(body, es)
+
+    channel.basic_consume(queue='datalake_queue', on_message_callback=datalake_callback, auto_ack=True)
+
+    channel.basic_consume(queue='linkfetcher_queue', on_message_callback=linkfetcher_callback, auto_ack=True)
+
     channel.start_consuming()
+    
+
+    print(" [*] Esperando por mensagens no datalake. Para sair pressione CTRL+C")
+
+
 
 if __name__ == "__main__":
     main()
