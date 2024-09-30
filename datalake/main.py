@@ -3,9 +3,13 @@ import json
 
 # pylint: disable=E0401
 import pika
-import json
 from elasticsearch import Elasticsearch
 from redis import Redis
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
+
+logging.info("Iniciando o serviço datalake")
 
 def setup_rabbitmq():
     """Configura a conexão com o RabbitMQ para o datalake."""
@@ -41,13 +45,13 @@ def setup_elasticsearch():
     print("Conectado ao Elasticsearch com sucesso.")
     return es
 
-import logging
-from redis import Redis
+
+
 
 def setup_redis():
     """Configura a conexão com o Redis."""
     redis_host = os.getenv('REDIS_HOST', 'redis')
-    redis_port = int(os.getenv('REDIS_PORT', 6379))
+    redis_port = int(os.getenv('REDIS_PORT', '6379'))
     
     # Cria o cliente Redis
     redis_client = Redis(host=redis_host, port=redis_port, db=0)
@@ -55,10 +59,19 @@ def setup_redis():
     try:
         # Testa a conexão com o Redis
         redis_client.ping()
-        logging.info(f"Conectado ao Redis em {redis_host}:{redis_port}")
+        response = redis_client.ping()
+        print(response)
+        if redis_client.ping():
+            print("Conexão com o Redis bem-sucedida!")
+        else:
+            print("Falha na conexão com o Redis.")
+        logging.info("Conectado ao Redis em %s:%s", redis_host, redis_port)
+
+        return redis_client
+        
     except Exception as e:
-        logging.error(f"Erro ao conectar ao Redis em {redis_host}:{redis_port}: {e}")
-    
+        logging.error("Erro ao conectar ao Redis em%s:%s:%s", redis_host,redis_port, e)
+        return None
     return redis_client
 
 
@@ -79,7 +92,10 @@ def index_data_to_elasticsearch(es: Elasticsearch, index_name: str, lead_id: str
 def get_lead_id_from_redis(redis_client, google_id):
     """Obtém o lead_id a partir do google_id no Redis."""
     try:
-        lead_id = redis_client.get(google_id)
+        redis_key = f"google_lead:{google_id}"
+
+        lead_id = redis_client.get(redis_key)
+
         if lead_id:
             print(f"Lead ID {lead_id.decode('utf-8')} encontrado para o Google ID {google_id}.")
             return lead_id.decode('utf-8')
@@ -92,32 +108,47 @@ def get_lead_id_from_redis(redis_client, google_id):
 
 def process_data_from_scrapper(body, es, redis_client):
     """Processa os dados recebidos do scrapper, busca o lead_id no Redis e salva no Elasticsearch."""
-    combined_data = json.loads(body)
-    print(f"Dados recebidos no datalake: {json.dumps(combined_data, indent=4, ensure_ascii=False)}")
-    
-    # Itera sobre companies_info para pegar o google_id e buscar o lead_id no Redis
-    companies_info = combined_data.get('companies_info', [])
-    for company in companies_info:
-        google_id = company.get('google_id')
-        
-        # Busca o lead_id no Redis
-        lead_id = get_lead_id_from_redis(redis_client, google_id)
-        
-        if lead_id:
-            # Se o lead_id for encontrado, salva os dados no Elasticsearch
-            index_name = 'leads_data'
+    try:            
+            combined_data = json.loads(body)
+            serper_data = combined_data.get('serper_data', {})
+            companies_info = combined_data.get('companies_info', [])
+            print(f"Dados recebidos no datalake: {json.dumps(combined_data, indent=4, ensure_ascii=False)}")
             
-            # Inclui o serper_data nos dados que serão indexados
-            serper_data = combined_data.get('serper_data', None)
-            data_to_index = {
-                'company_info': company,
-                'serper_data': serper_data
-            }
-            
-            index_data_to_elasticsearch(es, index_name, lead_id, data_to_index)
-        else:
-            print(f"Lead ID não encontrado para o Google ID {google_id}. Dados não indexados.")
-
+            # Itera sobre companies_info para pegar o google_id e buscar o lead_id no Redis
+            for company in companies_info:
+                google_id = company.get('google_id')
+                print("vindo do google_id for company in companies_info",google_id)
+                
+                # Busca o lead_id no Redis
+                lead_id = get_lead_id_from_redis(redis_client, google_id)
+                print("vindo do lead_id for company in companies_info",lead_id)
+                
+                if lead_id:
+                    # Se o lead_id for encontrado, salva os dados no Elasticsearch
+                    index_name = 'leads_data'
+                    print("vindo do lead_id for company in companies_info",lead_id)
+                    
+                    if 'rating' in serper_data and serper_data.get('rating') is not None:
+                        try:
+                            serper_data['rating'] = float(serper_data['rating'])  # Garantir que 'rating' seja convertido para float
+                        except ValueError:
+                            print(f"Erro ao converter rating para float: {serper_data['rating']}")
+                
+                    
+                    data_to_index = {
+                        'company_info': company,
+                        'serper_data': serper_data
+                    }
+                    
+                    index_data_to_elasticsearch(es, index_name, lead_id, data_to_index)
+                                
+                    # Inclui o serper_data nos dados que serão indexados
+                else:
+                    print(f"Lead ID não encontrado para o Google ID {google_id}. Dados não indexados.")
+    except json.JSONDecodeError:
+        print("Erro ao decodificar JSON.")
+    except Exception as e:
+        print(f"Erro no processamento de dados: {e}")
 
 def main():
     """Função principal para iniciar o datalake."""

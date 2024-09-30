@@ -7,13 +7,29 @@ import pika
 from bs4 import BeautifulSoup
 
 
-# Configurações de RabbitMQ
-RABBITMQ_HOST = os.getenv('RABBITMQ_HOST', 'rabbitmq')
-RABBITMQ_PORT = int(os.getenv('RABBITMQ_PORT', 5672))
-LINK_QUEUE = 'links_to_process'
 
-# Função para remover tags HTML e retornar o texto limpo
-def fetch_and_clean_link(url):
+def setup_rabbitmq():
+    """Configura a conexão com o RabbitMQ para o datalake."""
+    rabbitmq_host = os.getenv('RABBITMQ_HOST', 'rabbitmq')
+    rabbitmq_port = int(os.getenv('RABBITMQ_PORT', 5672))
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(host=rabbitmq_host, port=rabbitmq_port)
+    )
+    return connection
+
+def setup_channel(connection):
+    """Configura o canal RabbitMQ para consumir dados do 'companies_exchange'."""
+    channel = connection.channel()
+    exchange_name = 'companies_exchange'
+    
+    # Declara uma nova fila para o datalake
+    channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
+    channel.queue_declare(queue='datalake_queue', durable=True)
+    channel.queue_bind(exchange=exchange_name, queue='fecher_link_queue')
+
+    return channel
+
+
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -27,8 +43,7 @@ def fetch_and_clean_link(url):
         print(f"Erro durante a requisição: {e}")
         return None
 
-# Função para consumir links da fila do RabbitMQ
-def consume_links():
+
     # Conectar ao RabbitMQ
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT))
     channel = connection.channel()
@@ -55,5 +70,12 @@ def consume_links():
     print(f"Esperando por mensagens na fila '{LINK_QUEUE}'...")
     channel.start_consuming()
 
+def main():
+    connection = setup_rabbitmq()
+    channel = setup_channel(connection)
+
+    channel.basic_consume(queue='fecher_link_queue', on_message_callback=callback, auto_ack=True)
+    channel.start_consuming()
+
 if __name__ == "__main__":
-    consume_links()
+    main()

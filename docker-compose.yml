@@ -73,6 +73,7 @@ services:
     # Serviços de Armazenamento e Processamento de Dados
     datalake:
         build: ./datalake
+        restart: always
         environment:
             - ELASTICSEARCH_HOST=elasticsearch
             - RABBITMQ_HOST=rabbitmq
@@ -80,11 +81,11 @@ services:
             - REDIS_HOST=redis
             - REDIS_PORT=6379
         ports:
-            - "8080:8080"
+            - "8087:8087"
+        command: python main.py
+
         depends_on:
             rabbitmq:
-                condition: service_healthy
-            db:
                 condition: service_healthy
             elasticsearch:
                 condition: service_healthy
