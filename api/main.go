@@ -2,6 +2,8 @@ package main
 
 import (
 	"api/db"
+
+	"context"
 	"errors"
 	"strings"
 
@@ -15,10 +17,50 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/streadway/amqp"
 
 	"time"
 )
+
+var redisClient *redis.Client
+var ctx = context.Background()
+
+func ConnectToRedis() {
+	redisClient = redis.NewClient(&redis.Options{
+		Addr: "redis:6379", 
+		DB:   0,                
+	})
+
+	_, err := redisClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Erro ao conectar ao Redis: %v", err)
+	}
+	log.Println("Conectado ao Redis com sucesso.")
+}
+
+func SaveLeadToRedis(googleId string, leadId uuid.UUID) error {
+    if redisClient == nil {
+        return fmt.Errorf("redisClient não inicializado")
+    }
+
+    if googleId == "" {
+        return fmt.Errorf("googleId é vazio")
+    }
+    if leadId == uuid.Nil {
+        return fmt.Errorf("leadId é inválido")
+    }
+
+    redisKey := fmt.Sprintf("google_lead:%s", googleId)
+
+    err := redisClient.Set(ctx, redisKey, leadId.String(), 0).Err()
+	if err != nil {
+		return fmt.Errorf("Erro ao salvar google_id no Redis: %v", err)
+	}
+
+	log.Printf("Google ID %s salvo com Lead ID %s no Redis", googleId, leadId)
+	return nil
+}
 
 func sendConfirmationToScrapper(googleId string) error {
     log.Printf("Iniciando envio de confirmação para o scrapper com Google ID: %s", googleId)
@@ -528,7 +570,16 @@ func saveLeadToDatabase(data map[string]interface{}) error {
         return fmt.Errorf("Failed to save lead to database: %v", err)
     }
 
+
+
     log.Printf("Lead saved to database: %v", lead)
+
+    err = SaveLeadToRedis(lead.GoogleId, lead.ID)
+    if err != nil {
+        return fmt.Errorf("Failed to save lead to Redis: %v", err)
+    }
+
+    log.Printf("Lead salvo no Redis: Google ID %s -> Lead ID %s", lead.GoogleId, lead.ID)
     return nil
 }
 
@@ -577,6 +628,13 @@ func main() {
 		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
 	}
 	defer closeRabbitMQ()
+
+    log.Println("Conectando ao Redis...")
+    ConnectToRedis()
+
+    if redisClient == nil {
+        log.Fatalf("Falha ao conectar ao Redis.")
+    }
 
 	log.Println("Connecting to the database...")
 	db.Connect()

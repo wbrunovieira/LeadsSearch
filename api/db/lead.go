@@ -108,6 +108,20 @@ func GetLeadByGoogleId(googleId string) (*Lead, error) {
 	return &lead, nil
 }
 
+
+func GetLeadIdByGoogleId(googleId string) (uuid.UUID, error) {
+	var lead Lead
+	result := DB.Select("id").Where("google_id = ?", googleId).First(&lead)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return uuid.Nil, fmt.Errorf("Lead não encontrado para o Google ID: %s", googleId)
+		}
+		return uuid.Nil, result.Error
+	}
+	return lead.ID, nil
+}
+
+
 func UpdateLead(lead *Lead) error {
 	result := DB.Save(lead)
 	if result.Error != nil {

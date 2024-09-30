@@ -109,9 +109,9 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
     return
 }
 
-
+	fmt.Fprintf(w, "Search started for categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radiusInt)
 	
-	fmt.Fprintf(w, "Search started for categoryID: %s, zipcodeID: %s, radius: %d", categoryID, zipcodeID, radiusInt)
+	
 }
 
 
