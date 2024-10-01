@@ -156,7 +156,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	go func() {
 		for d := range msgs {
 
-            log.Printf("Mensagem recebida em formato bruto consumeCompaniesFromRabbitMQ: %v", d.Body)
+            
 
             log.Printf("Mensagem recebida do RabbitMQ pelo consumeCompaniesFromRabbitMQ: %s", string(d.Body))
 
@@ -453,6 +453,12 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
 
     go func() {
         for d := range msgs {
+
+            if !json.Valid(d.Body) {
+               
+                continue
+            }
+            
             log.Printf("Mensagem recebida do RabbitMQ pelo consumeLeadsFromRabbitMQ: %s", string(d.Body))
             var leadData map[string]interface{}
             err := json.Unmarshal(d.Body, &leadData)
