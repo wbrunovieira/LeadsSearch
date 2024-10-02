@@ -2,6 +2,9 @@ package main
 
 import (
 	"api/db"
+	"database/sql"
+	"regexp"
+	"strconv"
 
 	"context"
 	"errors"
@@ -119,11 +122,11 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 
 	q, err := ch.QueueDeclare(
 		queueName,
-		true,  // Durable
-		false, // Delete when unused
-		false, // Exclusive
-		false, // No-wait
-		nil,   // Arguments
+		true,  
+		false, 
+		false, 
+		false, 
+		nil,   
 	)
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
@@ -143,11 +146,11 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	msgs, err := ch.Consume(
 		q.Name,
 		"",
-		true,  // Auto-acknowledge
-		false, // Exclusive
-		false, // No-local
-		false, // No-wait
-		nil,   // Arguments
+		true,  
+		false, 
+		false, 
+		false, 
+		nil,   
 	)
 	if err != nil {
 		log.Fatalf("Failed to register a consumer: %v", err)
@@ -156,12 +159,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	go func() {
 		for d := range msgs {
 
-            
-
             log.Printf("Mensagem recebida do RabbitMQ pelo consumeCompaniesFromRabbitMQ: %s", string(d.Body))
-
-
-			
 
 			var combinedData map[string]interface{}
 
@@ -177,9 +175,6 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 				continue
 			}
 
-			
-
-			// Itera sobre a lista de companies_info e salva cada uma no banco de dados
 			for _, companyInfo := range companiesInfo {
 				companyMap, ok := companyInfo.(map[string]interface{})
 				if !ok {
@@ -188,11 +183,13 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 				}
                 print("companyMap aqui",companyMap)
 
-				// Salvar no banco de dados
-				err = saveCompanyData(companyMap)
-				if err != nil {
-					log.Printf("Falha ao salvar empresa: %v", err)
-				}
+				
+				leadID, err := saveCompanyData(companyMap)
+                if err != nil {
+                log.Printf("Falha ao salvar empresa: %v", err)
+                continue
+                }
+
                 cnpjDetails, ok := combinedData["cnpj_details"].([]interface{})
         if !ok {
             log.Printf("cnpj_details não encontrado ou não é uma lista válida: %v", combinedData)
@@ -212,8 +209,13 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
             continue
             }
 
-            // Aqui você pode decidir o que fazer com os detalhes do CNPJ
             log.Printf("Detalhes do CNPJ:\n%s", string(cnpjDetailJSON))
+
+            err = updateLeadWithCNPJDetailsByID(leadID, cnpjMap)
+            if err != nil {
+                log.Printf("Erro ao atualizar o lead: %v", err)
+                continue
+            }
         }
 			}
 		}
@@ -223,7 +225,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	select {} // Block para manter o consumer ativo
 }
 
-func saveCompanyData(data map[string]interface{}) error {
+func saveCompanyData(data map[string]interface{}) (uuid.UUID, error) {
     lead := db.Lead{}
     lead_step := db.LeadStep{}
 
@@ -239,7 +241,7 @@ func saveCompanyData(data map[string]interface{}) error {
 
                 err = db.CreateLead(&lead)
                 if err != nil {
-                    return fmt.Errorf("Erro ao criar lead: %v", err)
+                    return uuid.Nil, fmt.Errorf("Erro ao criar lead: %v", err)  
                 }
 
                
@@ -250,11 +252,11 @@ func saveCompanyData(data map[string]interface{}) error {
 
                 err = db.CreateLeadStep(&lead_step)
                 if err != nil {
-                    return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+                    return uuid.Nil, fmt.Errorf("Erro ao criar LeadStep: %v", err)
                 }
             } else {
                
-                return fmt.Errorf("Erro ao buscar lead: %v", err)
+                return uuid.Nil, fmt.Errorf("Erro ao buscar lead: %v", err)
             }
         } else {
            
@@ -266,8 +268,7 @@ func saveCompanyData(data map[string]interface{}) error {
             err = db.UpdateLead(existingLead)
 			log.Printf("Atualização do Lead com Google ID: %s concluída", existingLead.GoogleId)
             if err != nil {
-				log.Printf("Erro ao atualizar o lead: %v", err)
-                return fmt.Errorf("Erro ao atualizar o lead: %v", err)
+                return uuid.Nil, fmt.Errorf("Erro ao atualizar o lead: %v", err)  
             }
 
          
@@ -278,25 +279,26 @@ func saveCompanyData(data map[string]interface{}) error {
 
             err = db.CreateLeadStep(&lead_step)
             if err != nil {
-                return fmt.Errorf("Erro ao criar LeadStep: %v", err)
+                return uuid.Nil, fmt.Errorf("Erro ao criar LeadStep: %v", err)
             }
+            return existingLead.ID, nil
         }
     }
-    return nil
+    return lead.ID, nil
 }
 
 func leadHandler(w http.ResponseWriter, r *http.Request) {
     var lead db.Lead
     var lead_step db.LeadStep
 
-    // Decode o corpo da requisição
+    
     err := json.NewDecoder(r.Body).Decode(&lead)
     if err != nil {
         http.Error(w, err.Error(), http.StatusBadRequest)
         return
     }
 
-    // Tente buscar o Lead pelo Google ID
+    
     existingLead, err := db.GetLeadByGoogleId(lead.GoogleId)
     if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
         log.Printf("Erro ao buscar lead com Google ID: %s - %v", lead.GoogleId, err)
@@ -304,7 +306,7 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Se o lead existir, atualize
+    
         log.Printf("Chamando update1 Lead para Google ID: %s", existingLead.GoogleId)
         existingLead.CompanyRegistrationID = lead.CompanyRegistrationID
         existingLead.RegisteredName = lead.RegisteredName
@@ -325,7 +327,7 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
         }
         log.Printf("Lead atualizado com sucesso na tabela1 para Google ID: %s", existingLead.GoogleId)
 
-        // Crie o LeadStep para a atualização
+        
 		log.Printf("Chamando update Lead para Google ID: %s", existingLead.GoogleId)
         lead_step.LeadID = existingLead.ID
         lead_step.Step = "Lead Atualizado"
@@ -520,6 +522,10 @@ func saveLeadToDatabase(data map[string]interface{}) error {
             lead.Instagram = lead.Website
             lead.Website = ""
         }
+        if strings.HasPrefix(lead.Website, "https://www.facebook.com.com") {
+            lead.Facebook = lead.Website
+            lead.Website = ""
+        }
     }
 
 	if v, ok := data["Description"].(string); ok {
@@ -604,16 +610,16 @@ func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
         return nil, fmt.Errorf("Erro ao abrir canal: %v", err)
     }
 
-    // Declaração da exchange scrapper_exchange
+    
     exchangeName := "scrapper_exchange"
     err = channel.ExchangeDeclare(
         exchangeName,
-        "fanout",     // Tipo de exchange
-        true,         // Durável
-        false,        // Auto-delete
-        false,        // Interna
-        false,        // No-wait
-        nil,          // Argumentos adicionais
+        "fanout",     
+        true,         
+        false,        
+        false,        
+        false,        
+        nil,          
     )
     if err != nil {
         return nil, fmt.Errorf("Erro ao declarar exchange: %v", err)
@@ -622,6 +628,240 @@ func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
     log.Printf("Exchange %s declarada com sucesso", exchangeName)
     return channel, nil
 }
+
+
+func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]interface{}) error {
+    
+    lead, err := db.GetLeadByID(leadID)  
+    if err != nil {
+        return fmt.Errorf("Erro ao buscar Lead com ID %s: %v", leadID, err)
+    }
+
+    if lead == nil {
+        return fmt.Errorf("Lead não encontrado com ID: %s", leadID)
+    }
+
+
+    if v, ok := cnpjDetails["razao_social"].(string); ok {
+        if lead.RegisteredName == "" {
+            
+            lead.RegisteredName = v
+        } else if lead.RegisteredName != v {
+            
+            razaoSocialUpdate := fmt.Sprintf("Razão Social encontrada na Receita Federal: %s", v)
+
+            if lead.Description == "" {
+                
+                lead.Description = razaoSocialUpdate
+            } else {
+                
+                lead.Description = fmt.Sprintf("%s\n%s", lead.Description, razaoSocialUpdate)
+            }
+        }
+    }
+
+    if v, ok := cnpjDetails["atividade_principal"].(map[string]interface{}); ok {
+        if descricao, ok := v["descricao"].(string); ok {
+            lead.PrimaryActivity = descricao
+        }
+    }
+
+    if v, ok := cnpjDetails["atividades_secundarias"].([]interface{}); ok {
+        var secondaryActivities []string
+        for _, sec := range v {
+            if secMap, ok := sec.(map[string]interface{}); ok {
+                if descricao, ok := secMap["descricao"].(string); ok {
+                    secondaryActivities = append(secondaryActivities, descricao)
+                }
+            }
+        }
+        
+        lead.SecondaryActivities = strings.Join(secondaryActivities, ", ")
+    }
+
+    if v, ok := cnpjDetails["capital_social"].(string); ok {
+        equityCapital, err := strconv.ParseFloat(v, 64)
+        if err == nil {
+            lead.EquityCapital = equityCapital
+        } else {
+            return fmt.Errorf("Erro ao converter capital_social: %v", err)
+        }
+    }
+
+    if v, ok := cnpjDetails["data_inicio"].(string); ok {
+        foundationDate, err := time.Parse("2006-01-02", v) 
+        if err == nil {
+            lead.FoundationDate = sql.NullTime{Time: foundationDate, Valid: true}
+        } else {
+            return fmt.Errorf("Erro ao converter data de inicio: %v", err)
+        }
+    }
+
+    if v, ok := cnpjDetails["email"].(string); ok {
+        if lead.Email != "" {
+            
+            lead.Email = fmt.Sprintf("%s; %s", lead.Email, v)
+        } else {
+            
+            lead.Email = v
+        }
+    }
+
+    if socios, ok := cnpjDetails["socios"].([]interface{}); ok {
+        var ownerDetails []string
+        for _, socio := range socios {
+            if socioMap, ok := socio.(map[string]interface{}); ok {
+                nome, _ := socioMap["nome"].(string)
+                qualificacao, _ := socioMap["qualificacao"].(string)
+                
+                
+                if nome != "" && qualificacao != "" {
+                    ownerDetails = append(ownerDetails, fmt.Sprintf("%s (%s)", nome, qualificacao))
+                }
+            }
+        }
+
+    }
+
+   
+    normalizePhone := func(phone string) string {
+        re := regexp.MustCompile(`[\s\-\(\)]`) 
+        return re.ReplaceAllString(phone, "")
+    }
+
+    
+    formatPhone := func(phone string) string {
+        phone = normalizePhone(phone)
+        if len(phone) == 11 { 
+            return fmt.Sprintf("+55 %s %s-%s", phone[:2], phone[2:6], phone[6:])
+        }
+        return phone 
+    }
+
+   
+    var newPhones []string
+
+    
+    if telefone1, ok := cnpjDetails["telefone1"].(string); ok && telefone1 != "" {
+        newPhones = append(newPhones, formatPhone(telefone1))
+    }
+
+    
+    if telefone2, ok := cnpjDetails["telefone2"].(string); ok && telefone2 != "" {
+        newPhones = append(newPhones, formatPhone(telefone2))
+    }
+
+    
+    if lead.Phone != "" {
+        existingPhones := strings.Split(lead.Phone, ", ") 
+        normalizedExistingPhones := make(map[string]bool)
+
+       
+        for _, existingPhone := range existingPhones {
+            normalizedExistingPhones[normalizePhone(existingPhone)] = true
+        }
+
+        
+        for _, newPhone := range newPhones {
+            if !normalizedExistingPhones[normalizePhone(newPhone)] {
+                existingPhones = append(existingPhones, newPhone)
+            }
+        }
+
+        
+        lead.Phone = strings.Join(existingPhones, ", ")
+    } else {
+        
+        lead.Phone = strings.Join(newPhones, ", ")
+    }
+
+
+  
+
+    if v, ok := cnpjDetails["porte"].(string); ok {
+        lead.CompanySize = v
+    }
+
+    var additionalInfo []string
+
+    if mei, ok := cnpjDetails["mei"].(map[string]interface{}); ok {
+        if optanteMei, ok := mei["optante_mei"].(string); ok && optanteMei != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Optante MEI: %s", optanteMei))
+        }
+        if dataOpcao, ok := mei["data_opcao"].(string); ok && dataOpcao != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção MEI: %s", dataOpcao))
+        }
+        if dataExclusao, ok := mei["data_exclusao"].(string); ok && dataExclusao != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão MEI: %s", dataExclusao))
+        }
+    }
+
+   
+    if naturezaJuridica, ok := cnpjDetails["natureza_juridica"].(string); ok && naturezaJuridica != "" {
+        additionalInfo = append(additionalInfo, fmt.Sprintf("Natureza Jurídica: %s", naturezaJuridica))
+    }
+
+    
+    if simples, ok := cnpjDetails["simples"].(map[string]interface{}); ok {
+        if optanteSimples, ok := simples["optante_simples"].(string); ok && optanteSimples != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Optante Simples Nacional: %s", optanteSimples))
+        }
+        if dataOpcaoSimples, ok := simples["data_opcao"].(string); ok && dataOpcaoSimples != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção Simples: %s", dataOpcaoSimples))
+        }
+        if dataExclusaoSimples, ok := simples["data_exclusao"].(string); ok && dataExclusaoSimples != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão Simples: %s", dataExclusaoSimples))
+        }
+    }
+
+   
+    if situacao, ok := cnpjDetails["situacao"].(map[string]interface{}); ok {
+        if situacaoNome, ok := situacao["nome"].(string); ok && situacaoNome != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Situação: %s", situacaoNome))
+        }
+        if situacaoData, ok := situacao["data"].(string); ok && situacaoData != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Data da Situação: %s", situacaoData))
+        }
+        if situacaoMotivo, ok := situacao["motivo"].(string); ok && situacaoMotivo != "" {
+            additionalInfo = append(additionalInfo, fmt.Sprintf("Motivo da Situação: %s", situacaoMotivo))
+        }
+    }
+
+    
+    if len(additionalInfo) > 0 {
+        additionalInfoStr := fmt.Sprintf("Conteúdos adicionais encontrados na Receita Federal: %s", strings.Join(additionalInfo, ", "))
+        if lead.Description == "" {
+            lead.Description = additionalInfoStr
+        } else {
+            lead.Description = fmt.Sprintf("%s\n%s", lead.Description, additionalInfoStr)
+        }
+    }
+
+    err = db.UpdateLead(lead)
+    if err != nil {
+        log.Printf("Erro ao atualizar o lead: %v", err)
+        return fmt.Errorf("Erro ao atualizar o lead: %v", err)
+    }
+
+    leadStep := db.LeadStep{
+        ID:        uuid.New(),
+        LeadID:    lead.ID,
+        Step:      "Empresa Atualizada",
+        Status:    "Sucesso",
+        Timestamp: time.Now(),
+        Details:   fmt.Sprintf("Empresa %s com CNPJ %s atualizada", lead.RegisteredName, lead.CompanyRegistrationID),
+    }
+
+    err = db.CreateLeadStep(&leadStep)
+    if err != nil {
+        return fmt.Errorf("Erro ao criar o LeadStep: %v", err)
+    }
+
+
+    log.Printf("Lead atualizado com sucesso para ID: %s", leadID)
+    return nil
+}
+
 
 
 

@@ -47,10 +47,10 @@ async def fetch_serper_data(name, city):
     conn = http.client.HTTPSConnection("google.serper.dev")
     
     payload = json.dumps({
-      "q": f"{name}, {city}",  # Substitui o nome e cidade dinamicamente
-      "gl": "br",  # Localização geográfica (Brasil)
-      "hl": "pt-br",  # Idioma (Português)
-      "num": 30  # Número de resultados desejados
+      "q": f"{name}, {city}", 
+      "gl": "br",  
+      "hl": "pt-br", 
+      "num": 30  
     })
     
     headers = {
@@ -70,8 +70,6 @@ async def fetch_serper_data(name, city):
     return data.decode("utf-8")
 
     
-    # Retorna o conteúdo decodificado
-    return data.decode("utf-8")
 
 async def fetch_data_from_api(api_key, url):
     """Faz uma requisição assíncrona à API de scraping com a URL especificada."""
@@ -126,44 +124,44 @@ def send_to_rabbitmq(combined_data):
     exchange_name = 'companies_exchange'
 
     try:
-        # Serializa o objeto completo de dados combinados
+        
         message = json.dumps(combined_data)
         channel.basic_publish(
             exchange=exchange_name,
             routing_key='',
             body=message,
             properties=pika.BasicProperties(
-                delivery_mode=2,  # Mensagem persistente
+                delivery_mode=2,  
             )
         )
         print(f"Dados enviados para o RabbitMQ: {combined_data}")
     except pika.exceptions.UnroutableError as e:
         print(f"Erro ao publicar a mensagem: {e}")
     finally:
-        # Fechar a conexão após o envio
+        
         connection.close()
         print("Conexão com o RabbitMQ fechada.")
 
 def format_city_name(city_name):
-    # Remove qualquer parte após uma barra (/) na cidade
+   
     city_name = re.sub(r'/.*', '', city_name).strip()
     
-    # Lista de preposições comuns em português, inglês, italiano e espanhol
+    
     prepositions = [
-        'da', 'de', 'do', 'das', 'dos', 'e',      # Português
-        'of', 'the', 'and', 'in', 'on',           # Inglês
-        'di', 'del', 'della', 'dei', 'da', 'e',   # Italiano
-        'de', 'del', 'la', 'las', 'y'             # Espanhol
+        'da', 'de', 'do', 'das', 'dos', 'e',      
+        'of', 'the', 'and', 'in', 'on',           
+        'di', 'del', 'della', 'dei', 'da', 'e',   
+        'de', 'del', 'la', 'las', 'y'             
     ]
 
-    # Divide a cidade em palavras e aplica a capitalização
+   
     words = city_name.split()
     formatted_words = [
         word.capitalize() if word.lower() not in prepositions else word.lower()
         for word in words
     ]
     
-    # Junta as palavras novamente em uma única string
+    
     return ' '.join(formatted_words)
 
 async def parse_company_data(html_data, google_id, search_city):

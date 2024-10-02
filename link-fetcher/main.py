@@ -220,12 +220,9 @@ async def process_data_from_scrapper(body, redis_client):
                 google_id = company.get('google_id')
                 print("vindo do google_id for company in companies_info",google_id)
                 
-                # Busca o lead_id no Redis
+                
                 lead_id = get_lead_id_from_redis(redis_client, google_id)
                 print("vindo do lead_id for company in companies_info",lead_id)
-            
-                                                   
-                    
        
     except json.JSONDecodeError:
         print("Erro ao decodificar JSON.")
@@ -242,10 +239,10 @@ def main():
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
 
-    def callback(ch, method, properties, body):
+    async def callback(ch, method, properties, body):
         """Callback para processar mensagens da fila."""
-        
-        process_data_from_scrapper(body, redis_client)
+     
+        await process_data_from_scrapper(body, redis_client)
     
     channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=True)
     channel.start_consuming()

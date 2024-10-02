@@ -51,6 +51,8 @@ services:
             - xpack.security.enabled=false
         ports:
             - "9200:9200"
+        volumes:
+            - elasticsearch_data:/usr/share/elasticsearch/data
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
             interval: 30s
@@ -191,3 +193,4 @@ networks:
 volumes:
     postgres_data:
     redis_data:
+    elasticsearch_data:

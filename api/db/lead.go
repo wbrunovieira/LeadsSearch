@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,8 +42,11 @@ type Lead struct {
 	Revenue                 float64   `gorm:"type:numeric"`
 	EmployeesCount          int       `gorm:"default:0"`   
 	Description             string    `gorm:"type:text"`   
-	PrimaryActivity         string    `gorm:"type:text"`
-	Types              string    `gorm:"type:text"`
+	PrimaryActivity         string     `gorm:"type:text"`   
+	SecondaryActivities     string     `gorm:"type:text"` 
+	Types string `gorm:"type:text"`
+	EquityCapital           float64    `gorm:"type:numeric"`
+
 	BusinessStatus     string    `gorm:"type:text"`
 
 	Quality          string  `gorm:"size:50"`
@@ -119,6 +123,20 @@ func GetLeadIdByGoogleId(googleId string) (uuid.UUID, error) {
 		return uuid.Nil, result.Error
 	}
 	return lead.ID, nil
+}
+
+func GetLeadByID(leadID uuid.UUID) (*Lead, error) {
+    var lead Lead
+    result := DB.First(&lead, "id = ?", leadID)
+    
+    if result.Error != nil {
+        if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+            return nil, nil 
+        }
+        return nil, result.Error 
+    }
+    
+    return &lead, nil 
 }
 
 
