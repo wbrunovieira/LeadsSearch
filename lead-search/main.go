@@ -200,6 +200,7 @@ func setupDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
+
 func startSearch(categoryID string,  zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 	if apiKey == "" {
@@ -284,7 +285,7 @@ func startSearch(categoryID string,  zipcodeID int, radius int, db *sql.DB, ch *
 			}
 		}
 
-		// Atualizar o progresso da busca (número da página atual)
+		
 		err = repository.UpdateSearchProgressPage(db, progressID, currentPage)
 		if err != nil {
 			return fmt.Errorf("Failed to update search progress: %v", err)

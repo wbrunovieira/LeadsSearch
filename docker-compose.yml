@@ -122,8 +122,19 @@ services:
         networks:
             - leads-network
 
-    linkfetcher:
+    link-fetcher:
         build: ./link-fetcher
+        environment:
+            - RABBITMQ_HOST=rabbitmq
+            - RABBITMQ_PORT=5672
+        depends_on:
+            rabbitmq:
+                condition: service_healthy
+        networks:
+            - leads-network
+
+    website-fetcher:
+        build: ./website-fetcher
         environment:
             - RABBITMQ_HOST=rabbitmq
             - RABBITMQ_PORT=5672

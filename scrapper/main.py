@@ -190,18 +190,18 @@ async def parse_company_data(html_data, google_id, search_city):
                 a_tag = li_tag.find('a', href=True)
                 company_cnpj = re.search(r'\d{14}', a_tag['href']).group(0) if a_tag and re.search(r'\d{14}', a_tag['href']) else None
 
-                # Tentativa 1: Usar o ícone de localização SVG (já existente no código)
+                
                 location_tag = li_tag.find('svg', {'use': re.compile(r'#location')})
                 company_city = None
                 if location_tag:
                     city_tag = location_tag.find_parent('p')
                     if city_tag:
                         for svg in city_tag.find_all('svg'):
-                            svg.extract()  # Remove SVGs
+                            svg.extract()  
                         company_city = city_tag.get_text(strip=True).replace('\n', '').strip()
                         print(f"[LOG] Tentativa 1: Cidade encontrada: {company_city}")
                 
-                # Tentativa 2: Verificar se a cidade pode estar dentro de outra div com atributos diferentes
+                
                 if not company_city:
                     possible_city_tags = li_tag.find_all('p', class_=re.compile(r'text-sm'))
                     for possible_city_tag in possible_city_tags:
@@ -210,7 +210,7 @@ async def parse_company_data(html_data, google_id, search_city):
                             print(f"[LOG] Tentativa 2: Cidade encontrada: {company_city}")
                             break
 
-                # Tentativa 3: Usar regex no conteúdo de texto total, caso a cidade esteja fora de tags específicas
+                
                 if not company_city:
                     full_text = li_tag.get_text(separator=" ", strip=True)
                     match = re.search(r'\b\w+/\w{2}\b', full_text)
@@ -218,7 +218,7 @@ async def parse_company_data(html_data, google_id, search_city):
                         company_city = match.group(0)
                         print(f"[LOG] Tentativa 3: Cidade encontrada via regex: {company_city}")
 
-                # Tentativa 4: Outro método baseado em estrutura específica
+                
                 if not company_city:
                     print(f"[LOG] Cidade não encontrada. HTML do bloco: {li_tag}")
                 
@@ -305,9 +305,6 @@ async def handle_lead_data(lead_data):
                         print(f"[LOG] Detalhes do CNPJ não encontrados para { ['company_name']}")
 
 
-            
-                # 2. Chama a API Google Serper, utilizando as informações obtidas da consulta anterior
-                
                 print(f"Chamando a API Google Serper para {name}, {city}")
                 serper_response = await fetch_serper_data(name, city)
                 print(f"Resposta da API Google Serper: {serper_response}")
@@ -319,11 +316,9 @@ async def handle_lead_data(lead_data):
                     print(f"[LOG] Resposta da API Serper veio vazia para {name}, {city}")
 
                
-
-                # Imprime a estrutura combinada
                 print("Dados combinados de todas as APIs:", json.dumps(combined_data, indent=4, ensure_ascii=False))
 
-                # 4. Envia os dados para o RabbitMQ
+                
                 send_to_rabbitmq(combined_data)
             else:
                 print("Nenhuma informação de empresa encontrada da companies_info.",{companies_info})
