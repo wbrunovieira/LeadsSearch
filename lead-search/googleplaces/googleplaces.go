@@ -90,7 +90,7 @@ func (s *Service) GeocodeZip(zipCode string) (string, error) {
 
 func saveNextPageToken(token string) error {
 	
-	err := os.WriteFile("/Users/bruno/projects/leads_search/lead-search/next_page_token.txt", []byte(token), 0644)
+	err := os.WriteFile("/app/lead-search/next_page_token.txt", []byte(token), 0644)
 
 	if err != nil {
 		log.Printf("Erro ao salvar o next_page_token: %v", err)

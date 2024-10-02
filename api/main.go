@@ -29,6 +29,10 @@ import (
 var redisClient *redis.Client
 var ctx = context.Background()
 
+
+var rabbitConn *amqp.Connection
+var rabbitChannel *amqp.Channel
+
 func ConnectToRedis() {
 	redisClient = redis.NewClient(&redis.Options{
 		Addr: "redis:6379", 
@@ -196,7 +200,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
             continue
         }
 
-        // Processar cnpj_details se necessário
+       
         for _, cnpjDetail := range cnpjDetails {
             cnpjMap, ok := cnpjDetail.(map[string]interface{})
             if !ok {
@@ -352,8 +356,6 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Lead e LeadStep salvos com sucesso!")
 }
 
-var rabbitConn *amqp.Connection
-var rabbitChannel *amqp.Channel
 
 
 func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
@@ -386,7 +388,7 @@ func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
         return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
     }
 
-    // Abre o canal do RabbitMQ
+   
     ch, err = conn.Channel()
     if err != nil {
         return nil, nil, fmt.Errorf("failed to open RabbitMQ channel: %v", err)

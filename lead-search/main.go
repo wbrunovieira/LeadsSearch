@@ -380,7 +380,7 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
 
 
 func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error {
-    log.Println("Iniciando envio de lead via gRPC...")
+    
     q, err := ch.QueueDeclare(
         "leads_queue", 
         false,         
@@ -408,7 +408,7 @@ func sendLeadToRabbitMQ(ch *amqp.Channel, details map[string]interface{}) error 
             Body:        leadData,
         })
     if err != nil {
-        log.Println("Tentando enviar lead via RabbitMQ devido à falha no gRPC...")
+        
 
         return fmt.Errorf("Failed to publish a message to RabbitMQ: %v", err)
     }
