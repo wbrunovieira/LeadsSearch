@@ -330,14 +330,29 @@ def main():
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
 
+    channel.basic_qos(prefetch_count=5)
+
     print(" [*] Esperando por mensagens. Para sair pressione CTRL+C")
 
     def callback(ch, method, properties, body):
-        """Callback para processar mensagens da fila."""
-        lead_data = json.loads(body)
-        asyncio.run(handle_lead_data(lead_data))
 
-    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=True)
+        try:
+            lead_data = json.loads(body)
+            print(f"[LOG] Mensagem recebida: {lead_data}")
+            
+            asyncio.run(handle_lead_data(lead_data))
+            
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            print(f"[LOG] Mensagem processada e ACK enviado: {lead_data}")
+        
+        except Exception as e:
+            
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            print(f"[LOG] Erro ao processar mensagem: {e}. Mensagem reenfileirada.")
+
+       
+
+    channel.basic_consume(queue='scrapper_queue', on_message_callback=callback, auto_ack=False)
     channel.start_consuming()
 
 if __name__ == "__main__":
