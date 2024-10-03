@@ -15,6 +15,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
 
+
 load_dotenv()
 
 logging.info("Iniciando o serviço linkfetcher")
@@ -27,11 +28,11 @@ def setup_redis():
     redis_host = os.getenv('REDIS_HOST', 'redis')
     redis_port = int(os.getenv('REDIS_PORT', '6379'))
     
-    # Cria o cliente Redis
+    
     redis_client = Redis(host=redis_host, port=redis_port, db=0)
 
     try:
-        # Testa a conexão com o Redis
+       
         redis_client.ping()
         response = redis_client.ping()
         print(response)
@@ -118,39 +119,34 @@ async def fetch_data_from_api(api_key, url):
                     return None
             return await response.text()
 
-def send_to_datalake(lead_id, content):
+def send_to_datalake(channel,delivery_tag, lead_id, content):
     """Envia o conteúdo extraído para o datalake."""
     data = {
         'lead_id': lead_id,
         'content': content
     }
 
-    connection = setup_rabbitmq()
-    channel = setup_channel(connection)
-    exchange_name = 'companies_exchange'
-
     try:
-       
         message = json.dumps(content)
+
         channel.basic_publish(
-            exchange=exchange_name,
+            exchange='companies_exchange',
             routing_key='',
             body=message,
-            properties=pika.BasicProperties(
-                delivery_mode=2,  # Mensagem persistente
-            )
+            properties=pika.BasicProperties(delivery_mode=2)
         )
         logging.info("Dados enviados para o RabbitMQ do linkFetcher: %s", message)
+
+        channel.basic_ack(delivery_tag=delivery_tag)
+
+        logging.info("Mensagem ACK enviada com sucesso para o delivery_tag: %s", delivery_tag)
+
     except pika.exceptions.UnroutableError as e:
+        logging.error(f"Erro ao publicar a mensagem: {e}")
+        channel.basic_nack(delivery_tag=delivery_tag, requeue=True)
         print(f"Erro ao publicar a mensagem: {e}")
-    finally:
-        # Fechar a conexão após o envio
-        connection.close()
-        print("Conexão com o RabbitMQ fechada.")
+  
 
-
-    
-    logging.info(f"Enviando dados para o datalake: {data}")
 
 def clean_text(text):
     """Remove espaços vazios extras, múltiplos \n e \t e caracteres indesejados."""
@@ -181,7 +177,7 @@ def get_lead_id_from_redis(redis_client, google_id):
         print(f"Erro ao buscar Lead ID no Redis: {e}")
         return None
 
-async def process_data_from_scrapper(body, redis_client):
+def process_data_from_scrapper(body, redis_client,channel,method):
     """Processa os dados recebidos do scrapper, busca o lead_id no Redis e consulta os links do serpro e envia para o data;ake salvar no elasticsearch"""
     try:            
             combined_data = json.loads(body)
@@ -198,31 +194,26 @@ async def process_data_from_scrapper(body, redis_client):
                 
                 lead_id = get_lead_id_from_redis(redis_client, google_id)
                 print("vindo do lead_id for company in companies_info",lead_id)
+
+                if not lead_id:
+                    logging.warning("Lead ID não encontrado para Google ID {%s}",google_id)
+                    continue
             
-            for i, result in enumerate(organic_results):
-                if i >= 5:  
-                    break
+            for result in enumerate(organic_results[:5]):
                 link = result.get('link')
                 if link:
                     print("link do extract",link)
-                    content = await fetch_data_from_api(link,api_key)
+                    content = fetch_data_from_api(api_key, link)
                     print("content do extract",content)
                     if content:
                         content = clean_text(content)
-                        send_to_datalake(lead_id, content)
+                        send_to_datalake(channel,method.delivery_tag,lead_id, content)
                     else:
                         logging.error("Falha ao extrair conteúdo do link %s para o Google ID %s",link,google_id)
-
-            companies_info = combined_data.get('companies_info', [])
-            print(f"Dados recebidos no linkfeatcher do scrapper: {json.dumps(combined_data, indent=4, ensure_ascii=False)}")
-            
-            for company in companies_info:
-                google_id = company.get('google_id')
-                print("vindo do google_id for company in companies_info",google_id)
-                
-                
-                lead_id = get_lead_id_from_redis(redis_client, google_id)
-                print("vindo do lead_id for company in companies_info",lead_id)
+                        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                        return
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            logging.info("Mensagem ACK enviada com sucesso para o delivery_tag: %s", method.delivery_tag)
        
     except json.JSONDecodeError:
         print("Erro ao decodificar JSON.")
@@ -241,10 +232,20 @@ def main():
 
     async def callback(ch, method, properties, body):
         """Callback para processar mensagens da fila."""
+        logging.info("Mensagem recebida do RabbitMQ.")
+
+        try:            
+            process_data_from_scrapper(body, redis_client, channel, method)
+           
+        except Exception as e:
+            logging.error(f"Erro ao processar mensagem: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
      
-        await process_data_from_scrapper(body, redis_client)
+        
     
-    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=False)
+
     channel.start_consuming()
     
     print(" [*] Esperando por mensagens no linkfetcher. Para sair pressione CTRL+C")

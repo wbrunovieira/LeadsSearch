@@ -646,14 +646,17 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
             if socioMap, ok := socio.(map[string]interface{}); ok {
                 nome, _ := socioMap["nome"].(string)
                 qualificacao, _ := socioMap["qualificacao"].(string)
-                
-                
+
                 if nome != "" && qualificacao != "" {
                     ownerDetails = append(ownerDetails, fmt.Sprintf("%s (%s)", nome, qualificacao))
                 }
             }
         }
 
+        if len(ownerDetails) > 0 {
+            
+            lead.Owner = strings.Join(ownerDetails, ", ")
+        }
     }
 
    
