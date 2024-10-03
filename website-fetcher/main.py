@@ -1,4 +1,7 @@
 import json
+import http.client
+import json
+
 import os
 import re
 from urllib.parse import urljoin
@@ -22,7 +25,7 @@ load_dotenv()
 
 logging.info("Iniciando o serviço linkfetcher")
 
-allowed_languages = ['pt', 'en', 'es']
+allowed_languages = ['pt']
 
 
 def setup_redis():
@@ -98,6 +101,7 @@ def fetch_data_from_url(url,max_pages=10):
     visited_urls = set()
     page_count = 0
     base_domain = urlparse(url).netloc
+    cloudflare_pages = []
 
     def scrape_page(current_url):
         """Função recursiva para visitar páginas e extrair informações."""
@@ -119,9 +123,14 @@ def fetch_data_from_url(url,max_pages=10):
                 html_content = response.text
                 plain_text = soup.get_text()
 
+                if handle_cloudflare_protected_pages(current_url, soup, html_content, cloudflare_pages):
+                    return
+
                
                 metatags = extract_metatags(soup)
                 pixels = extract_tracking_pixels(html_content)
+                technologies = extract_technologies(html_content)
+                print(f"Tecnologias usadas no site: {technologies}")
                 
                 page_title = extract_page_title(soup)
                 social_links = extract_social_links(soup, current_url)
@@ -129,7 +138,7 @@ def fetch_data_from_url(url,max_pages=10):
 
                 clean_text = ' '.join(plain_text.split())
 
-                print("URL: %s, current_url")
+                print("URL da consulta: %s", current_url)
                
 
                 print("Título da Página:", page_title)
@@ -145,6 +154,7 @@ def fetch_data_from_url(url,max_pages=10):
                 links = extract_links(soup, current_url)
                 for link in links:
                     scrape_page(link)
+                print("links:", links)
 
             else:
                 logging.warning("Falha ao acessar %s: Status %s ",current_url,response.status_code)
@@ -154,6 +164,11 @@ def fetch_data_from_url(url,max_pages=10):
 
     
     scrape_page(url)
+
+    if cloudflare_pages:
+        print("Páginas protegidas por Cloudflare encontradas:")
+        for page in cloudflare_pages:
+            print(page)
 
 
 def extract_metatags(soup):
@@ -176,12 +191,12 @@ def extract_tracking_pixels(html_content):
     """Extrai pixels de rastreamento do HTML da página."""
     pixels = {}
 
-    # Verificar presença de pixel do Facebook
+    
     facebook_pixel = re.findall(r'fbq\(.+?\)', html_content)
     if facebook_pixel:
         pixels['Facebook Pixel'] = facebook_pixel
 
-    # Verificar presença de pixel do Google Analytics
+    
     google_analytics = re.findall(r'gtag\(.+?\)|ga\(.+?\)', html_content)
     if google_analytics:
         pixels['Google Analytics'] = google_analytics
@@ -207,26 +222,20 @@ def extract_contact_info(soup, html_content):
     """Extrai informações de contato, como telefone, email e endereço."""
     contact_info = {}
 
-    # Tentar encontrar telefones
-    phone_numbers = re.findall(r'(\+55\s?)?\(?\d{2}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}', html_content)
-    if phone_numbers:
-        contact_info['Telefones'] = phone_numbers
+    
+    phone_numbers = re.findall(r'\+?55?\s*\(?\b[0-9]{2,4}\)?[-.\s]?[0-9]{4,5}[-.\s]?[0-9]{4}\b', html_content)
 
-    # Tentar encontrar emails
+    phone_numbers = [phone.strip() for phone in phone_numbers if phone.strip() and len(phone.strip()) > 7]
+
+    contact_info['Telefones'] = phone_numbers if phone_numbers else None
+
+    
     emails = re.findall(r'[\w\.-]+@[\w\.-]+', html_content)
     if emails:
         contact_info['Emails'] = emails
 
-    address_keywords = ['Rua', 'Avenida', 'Travessa', 'Estrada', 'Praça']
-    address = None
-    for keyword in address_keywords:
-        address_candidate = soup.find(text=re.compile(rf'{keyword}\s+\w+', re.IGNORECASE))
-        if address_candidate:
-            address = address_candidate.strip()
-            break
-
-    if address:
-        contact_info['Endereço'] = address
+    address = extract_address_from_html(soup)
+    contact_info['Endereço'] = address
 
     return contact_info
 
@@ -240,6 +249,146 @@ def extract_links(soup, base_url):
         if urlparse(full_url).netloc == urlparse(base_url).netloc:  # Limita ao mesmo domínio
             links.add(full_url)
     return links
+
+def extract_address_from_html(soup):
+    """Tenta extrair o endereço da página a partir de diferentes padrões comuns em sites."""
+    
+    # Verifica se existe algum esquema JSON-LD com informações de endereço
+    for script in soup.find_all('script', type='application/ld+json'):
+        try:
+            json_data = json.loads(script.string)
+            if isinstance(json_data, dict) and '@type' in json_data and json_data['@type'] == 'Hotel':
+                address = json_data.get('address', {})
+                if isinstance(address, dict):
+                    street_address = address.get('streetAddress', '')
+                    city = address.get('addressLocality', '')
+                    postal_code = address.get('postalCode', '')
+                    country = address.get('addressCountry', '')
+
+                    full_address = f"{street_address}, {city}, {postal_code}, {country}"
+                    return full_address.strip()
+        except json.JSONDecodeError:
+            continue  # Continua se houver erro no JSON
+
+    # Padrão básico para tentar extrair o endereço do HTML sem JSON-LD
+    # Esse padrão tenta encontrar algo semelhante a um endereço (rua, número, cidade, CEP)
+    address_pattern = r"\b[0-9]{1,5}\s+\w+\s+\w+,\s+\w+,\s+[A-Z]{2},?\s+[0-9]{5}-[0-9]{3}\b"
+    address_match = re.search(address_pattern, soup.get_text())
+    
+    if address_match:
+        return address_match.group(0)
+
+    # Caso não encontre nenhum padrão específico, retorna uma mensagem padrão
+    return "Endereço não encontrado"
+
+def extract_technologies(html_content):
+    """Detecta tecnologias comuns usadas em sites, como WordPress, Magento, etc."""
+    technologies = []
+
+    # Verifica por padrões específicos de tecnologias no HTML
+
+    # WordPress
+    if re.search(r'/wp-content/', html_content):
+        technologies.append('WordPress')
+
+    # Joomla
+    if re.search(r'/components/com_', html_content):
+        technologies.append('Joomla')
+
+    # Drupal
+    if re.search(r'/sites/default/files/', html_content):
+        technologies.append('Drupal')
+
+    # Magento
+    if re.search(r'/skin/frontend/', html_content):
+        technologies.append('Magento')
+
+    # Shopify
+    if re.search(r'\.myshopify\.com', html_content) or re.search(r'/cdn.shopify.com/', html_content):
+        technologies.append('Shopify')
+
+    # Wix
+    if re.search(r'wix\.com', html_content):
+        technologies.append('Wix')
+
+    # Squarespace
+    if re.search(r'squarespace\.com', html_content):
+        technologies.append('Squarespace')
+
+    # Weebly
+    if re.search(r'weebly\.com', html_content):
+        technologies.append('Weebly')
+
+    # Google Sites
+    if re.search(r'sites.google.com', html_content):
+        technologies.append('Google Sites')
+
+    # WooCommerce (para e-commerce WordPress)
+    if re.search(r'/woocommerce/', html_content):
+        technologies.append('WooCommerce')
+
+    # PrestaShop
+    if re.search(r'/modules/', html_content) and re.search(r'/themes/', html_content):
+        technologies.append('PrestaShop')
+
+    # BigCommerce
+    if re.search(r'/cdn.bigcommerce.com/', html_content):
+        technologies.append('BigCommerce')
+
+    # Landing page builders
+    # Unbounce
+    if re.search(r'unbouncepages.com', html_content):
+        technologies.append('Unbounce')
+
+    # LeadPages
+    if re.search(r'myleadpages\.com', html_content):
+        technologies.append('LeadPages')
+
+    # Instapage
+    if re.search(r'instapage\.com', html_content):
+        technologies.append('Instapage')
+
+    # HubSpot CMS
+    if re.search(r'cdn\.hubspot\.com', html_content):
+        technologies.append('HubSpot CMS')
+
+    # ClickFunnels
+    if re.search(r'clickfunnels\.com', html_content):
+        technologies.append('ClickFunnels')
+
+    # Outros frameworks e bibliotecas
+    # Bootstrap
+    if re.search(r'bootstrap(?:\.min)?\.css', html_content):
+        technologies.append('Bootstrap')
+
+    # FontAwesome
+    if re.search(r'font-awesome(?:\.min)?\.css', html_content):
+        technologies.append('FontAwesome')
+
+    # jQuery
+    if re.search(r'jquery(?:\.min)?\.js', html_content):
+        technologies.append('jQuery')
+
+    # React.js
+    if re.search(r'react(?:\.min)?\.js', html_content):
+        technologies.append('React.js')
+
+    # Vue.js
+    if re.search(r'vue(?:\.min)?\.js', html_content):
+        technologies.append('Vue.js')
+
+    # Angular.js
+    if re.search(r'angular(?:\.min)?\.js', html_content):
+        technologies.append('Angular.js')
+
+    if not re.search(r'/wp-content/|/components/com_|\.myshopify\.com|/cdn.shopify.com/', html_content):
+        # Verificar se contém CSS e JS simples
+        if re.search(r'\.css', html_content) and re.search(r'\.js', html_content):
+            technologies.append('HTML, CSS, JS puro')
+        else:
+            technologies.append('HTML puro')
+
+    return technologies
 
 
 def send_to_datalake(lead_id, content):
@@ -389,6 +538,92 @@ def process_lead_data(lead_data, redis_client):
             logging.info("Facebook URL detectada, ignorando scraping.")
         else:
             fetch_data_from_url(website)
+            domain_whois(website)
+
+def domain_whois(domain):
+    """Consulta o domínio no RDAP do registro.br ou na API do zozor54 se o domínio não terminar com .br"""
+    parsed_domain = urlparse(domain).netloc 
+    if parsed_domain.endswith(".br"):
+        
+        url = f"https://rdap.registro.br/domain/{parsed_domain}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  
+            data = response.json()
+
+            
+            extracted_data = {
+                'Domain': data.get('ldhName'),
+                'Registrant Organization': data['entities'][0]['vcardArray'][1][3][3] if data.get('entities') else None,
+                'Registrant CNPJ': next((p['identifier'] for p in data['entities'][0]['publicIds'] if p['type'] == 'cnpj'), None),
+                'Administrative Contact': data['entities'][0]['entities'][0]['vcardArray'][1][3][3] if data['entities'][0].get('entities') else None,
+                'Administrative Email': data['entities'][0]['entities'][0]['vcardArray'][1][4][3] if data['entities'][0].get('entities') else None,
+                'Nameservers': [ns['ldhName'] for ns in data.get('nameservers', [])],
+                'Registration Date': next((e['eventDate'] for e in data.get('events', []) if e['eventAction'] == 'registration'), None),
+                'Last Changed': next((e['eventDate'] for e in data.get('events', []) if e['eventAction'] == 'last changed'), None),
+                'Expiration Date': next((e['eventDate'] for e in data.get('events', []) if e['eventAction'] == 'expiration'), None),
+                'Status': data.get('status', [])
+            }
+            print("extracted_data .br",extracted_data)
+            
+            return extracted_data
+        
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao consultar o domínio {parsed_domain}: {e}")
+            return None
+    
+    else:
+       
+        try:
+            conn = http.client.HTTPSConnection("zozor54-whois-lookup-v1.p.rapidapi.com")
+            headers = {
+                'x-rapidapi-key': os.getenv('RAPIDAPI_KEY'),  
+                'x-rapidapi-host': "zozor54-whois-lookup-v1.p.rapidapi.com"
+            }
+
+            conn.request("GET", f"/ssl-cert-check?domain={parsed_domain}", headers=headers)
+
+            res = conn.getresponse()
+            data = res.read()
+
+            
+            whois_data = json.loads(data.decode("utf-8"))
+
+            
+            extracted_data = {
+                'Domain': whois_data.get('name'),
+                'Nameservers': whois_data.get('nameserver', []),
+                'Created': whois_data.get('created'),
+                'Changed': whois_data.get('changed'),
+                'Expires': whois_data.get('expires'),
+                'Registrar': whois_data.get('registrar', {}).get('name'),
+                'Registrar Email': whois_data.get('registrar', {}).get('email'),
+                'Registrar Phone': whois_data.get('registrar', {}).get('phone'),
+                'Status': whois_data.get('status', []),
+                'Owner Email': whois_data['contacts']['owner'][0]['email'] if whois_data.get('contacts', {}).get('owner') else None,
+                'Admin Email': whois_data['contacts']['admin'][0]['email'] if whois_data.get('contacts', {}).get('admin') else None,
+                'Tech Email': whois_data['contacts']['tech'][0]['email'] if whois_data.get('contacts', {}).get('tech') else None
+            }
+            print("extracted_data inter",extracted_data)
+            return extracted_data
+
+        except Exception as e:
+            print(f"Erro ao consultar o domínio {parsed_domain} na API zozor54: {e}")
+            return None
+def clean_address(raw_address):
+    """Limpa o campo de endereço para remover tags ou informações complexas."""
+    # O endereço no RDAP pode estar dentro de um array, vamos tratar isso
+    if isinstance(raw_address, list):
+        # Converte a lista de endereço em uma string concatenada
+        raw_address = ", ".join(filter(None, raw_address))  # Junta os elementos não vazios da lista com vírgulas
+    
+    # Faz uma limpeza adicional para remover qualquer resíduo de tags ou estruturas
+    clean_address = re.sub(r'<[^>]*>', '', raw_address)  # Remove tags HTML
+    clean_address = re.sub(r'[\r\n]+', ' ', clean_address)  # Remove quebras de linha
+    clean_address = re.sub(r'\{.*?\}', '', clean_address)  # Remove conteúdo entre chaves (caso exista)
+    
+    return clean_address.strip()
+
 
 def is_valid_json(data):
     """Verifica se o corpo da mensagem é um JSON válido."""
@@ -397,6 +632,31 @@ def is_valid_json(data):
         return True
     except ValueError:
         return False
+
+def detect_cloudflare_protection(soup, html_content):
+    """Verifica se a página está protegida pelo Cloudflare e retorna uma mensagem apropriada."""
+    protection_indicators = [
+        "Email Protection | Cloudflare",
+        "This page is protected by Cloudflare",
+        "Email addresses on that page have been hidden",
+        "You must enable Javascript in your browser in order to decode the e-mail address"
+    ]
+
+    # Verifica se o conteúdo da página contém sinais de proteção do Cloudflare
+    for indicator in protection_indicators:
+        if indicator in html_content or indicator in soup.title.string:
+            return True
+    
+    return False
+
+def handle_cloudflare_protected_pages(current_url, soup, html_content, cloudflare_pages):
+    """Verifica se a página está protegida por Cloudflare e registra."""
+    if "Please enable cookies." in html_content and "Cloudflare" in html_content:
+        cloudflare_pages.append(current_url)
+        logging.info(f"Página protegida por Cloudflare detectada: {current_url}")
+        return True
+    return False
+
 
 def main():
     
