@@ -97,24 +97,27 @@ def fetch_data_from_url(url,max_pages=10):
     
     visited_urls = set()
     page_count = 0
+    base_domain = urlparse(url).netloc
 
     def scrape_page(current_url):
         """Função recursiva para visitar páginas e extrair informações."""
         nonlocal page_count
-        if current_url in visited_urls or not current_url.startswith(url) or page_count >= max_pages:
+        current_domain = urlparse(current_url).netloc
+        if current_url in visited_urls or base_domain not in current_domain or page_count >= max_pages:
             return
 
         try:
             response = session.get(current_url, timeout=10)
             visited_urls.add(current_url)
+            print("pagina atual",page_count)
             page_count += 1
 
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                logging.info(f"Extraindo dados da página: {current_url}")
-                
-                
+                logging.info("Extraindo dados da página: %s",current_url)
+                                
                 html_content = response.text
+                plain_text = soup.get_text()
 
                
                 metatags = extract_metatags(soup)
@@ -124,9 +127,13 @@ def fetch_data_from_url(url,max_pages=10):
                 social_links = extract_social_links(soup, current_url)
                 contact_info = extract_contact_info(soup, html_content)
 
+                clean_text = ' '.join(plain_text.split())
+
+                print("URL: %s, current_url")
                
-                print(f"URL: {current_url}")
+
                 print("Título da Página:", page_title)
+                print("texto da pagina", clean_text)
                 print("Metatags:", metatags)
                 print("Pixels:", pixels)
                 
@@ -201,7 +208,7 @@ def extract_contact_info(soup, html_content):
     contact_info = {}
 
     # Tentar encontrar telefones
-    phone_numbers = re.findall(r'\(?\b[0-9]{2,4}\)?[-.\s]?[0-9]{4,5}[-.\s]?[0-9]{4}\b', html_content)
+    phone_numbers = re.findall(r'(\+55\s?)?\(?\d{2}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}', html_content)
     if phone_numbers:
         contact_info['Telefones'] = phone_numbers
 
@@ -210,8 +217,14 @@ def extract_contact_info(soup, html_content):
     if emails:
         contact_info['Emails'] = emails
 
-    # Procurar endereço (pode ser mais complexo, mas aqui é uma abordagem básica)
-    address = soup.find(text=re.compile(r'\d{1,3}\s\w+\s\w+'))  # Exemplo básico
+    address_keywords = ['Rua', 'Avenida', 'Travessa', 'Estrada', 'Praça']
+    address = None
+    for keyword in address_keywords:
+        address_candidate = soup.find(text=re.compile(rf'{keyword}\s+\w+', re.IGNORECASE))
+        if address_candidate:
+            address = address_candidate.strip()
+            break
+
     if address:
         contact_info['Endereço'] = address
 
@@ -360,20 +373,9 @@ def consume_leads_from_rabbitmq(channel,redis_client):
             logging.error("Erro ao processar a mensagem:  %s",e)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
-    
-    try:
-        channel.basic_consume(
-            queue=queue_name,
-            on_message_callback=lambda ch, method, properties, body: callback(ch, method, properties, body, redis_client),
-            auto_ack=False
-        )
-        logging.info("Consumindo leads do RabbitMQ...")
-        channel.start_consuming()
-    except Exception as e:
-        logging.error("Erro ao consumir mensagens do RabbitMQ:  %s",e)
 
 
-async def process_lead_data(lead_data, redis_client):
+def process_lead_data(lead_data, redis_client):
     lead_id = get_lead_id_from_redis(redis_client, lead_data.get("PlaceID"))
     if not lead_id:
         logging.warning("Lead ID não encontrado para o Google ID %s", lead_data.get("PlaceID"))
