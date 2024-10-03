@@ -220,6 +220,17 @@ def process_data_from_scrapper(body, redis_client,channel,method):
     except Exception as e:
         print(f"Erro no processamento de dados: {e}")
 
+
+def callback(channel, method, properties, body,redis_client):
+    """Callback para processar mensagens da fila."""
+    logging.info("Mensagem recebida do RabbitMQ.")
+    try:
+        process_data_from_scrapper(body, redis_client, channel, method)
+    except Exception as e:
+        logging.error("Erro ao processar mensagem: %s",e)
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
 def main():
     
     redis_client = setup_redis()
@@ -230,16 +241,14 @@ def main():
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
 
-    async def callback(ch, method, properties, body):
-        """Callback para processar mensagens da fila."""
-        logging.info("Mensagem recebida do RabbitMQ.")
+    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=False)
+    logging.info(" [*] Esperando por mensagens no linkfetcher. Para sair pressione CTRL+C")
+    try:
+        channel.start_consuming()
+    except KeyboardInterrupt:
+        channel.stop_consuming()
 
-        try:            
-            process_data_from_scrapper(body, redis_client, channel, method)
-           
-        except Exception as e:
-            logging.error(f"Erro ao processar mensagem: {e}")
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
 
      
         

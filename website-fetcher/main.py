@@ -90,7 +90,7 @@ def setup_channel(connection):
     return channel
 
 
-def fetch_data_from_url(url,max_pages=10):
+def fetch_data_from_url(url,max_pages=1):
     """Faz scraping da página inicial e segue links, extraindo informações úteis para abordagem comercial."""
     
     session = requests.Session()
@@ -122,6 +122,15 @@ def fetch_data_from_url(url,max_pages=10):
                                 
                 html_content = response.text
                 plain_text = soup.get_text()
+
+                detected_language = detect_language(plain_text)
+                if detected_language != 'pt':
+                    print("Idioma da página %s não é permitido: detected_language",current_url, detected_language)
+                    return  
+
+            
+                print(f"Linguagem detectada: {detected_language}. Processando página...")
+
 
                 if handle_cloudflare_protected_pages(current_url, soup, html_content, cloudflare_pages):
                     return
@@ -381,9 +390,9 @@ def extract_technologies(html_content):
     if re.search(r'angular(?:\.min)?\.js', html_content):
         technologies.append('Angular.js')
 
-    if not re.search(r'/wp-content/|/components/com_|\.myshopify\.com|/cdn.shopify.com/', html_content):
-        # Verificar se contém CSS e JS simples
-        if re.search(r'\.css', html_content) and re.search(r'\.js', html_content):
+    if not technologies:
+        # Verificar se contém arquivos CSS e JS
+        if re.search(r'\.css', html_content) or re.search(r'\.js', html_content):
             technologies.append('HTML, CSS, JS puro')
         else:
             technologies.append('HTML puro')
@@ -657,6 +666,16 @@ def handle_cloudflare_protected_pages(current_url, soup, html_content, cloudflar
         return True
     return False
 
+def detect_language(text):
+    """Detecta a linguagem do texto e verifica se está dentro dos idiomas permitidos."""
+    try:
+        detected_language = detect(text)
+        if detected_language in allowed_languages:
+            return detected_language
+        else:
+            return f"Linguagem detectada ({detected_language}) não permitida"
+    except LangDetectException:
+        return "Não foi possível detectar o idioma"
 
 def main():
     
