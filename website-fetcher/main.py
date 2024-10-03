@@ -1,6 +1,8 @@
 import json
 import os
 import re
+from urllib.parse import urljoin
+
 
 # pylint: disable=E0401
 from langdetect import detect, LangDetectException
@@ -9,9 +11,9 @@ import requests
 import pika
 from bs4 import BeautifulSoup
 from redis import Redis
-from urllib.parse import quote
+from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
-from wappalyzer import Wappalyzer, WebPage
+
 import logging
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
@@ -64,11 +66,23 @@ def setup_channel(connection):
     """Configura o canal RabbitMQ para consumir dados do 'companies_exchange'."""
     channel = connection.channel()
     exchange_name = 'leads_exchange'
+    queue_name = 'leads_queue_lead_search_to_website_fetcher'
     
-    
+
     channel.exchange_declare(exchange=exchange_name, exchange_type='fanout', durable=True)
-    channel.queue_declare(queue='leads_queue', durable=True)
-    
+
+    try:
+        channel.queue_delete(queue=queue_name)
+    except pika.exceptions.ChannelClosedByBroker as e:
+        logging.warning("Queue %s does not exist or could not be deleted. Proceeding to declare. erro:%s",queue_name,e)
+
+        args = {
+            'x-message-ttl': 60000, # TTL de 60 segundos
+            'x-dead-letter-exchange': 'dlx_exchange'  # Dead-letter exchange
+        }
+
+        channel.queue_declare(queue=queue_name, durable=True, arguments=args)
+        channel.queue_bind(queue=queue_name, exchange=exchange_name)
 
     return channel
 
@@ -77,7 +91,7 @@ def fetch_data_from_url(url,max_pages=10):
     """Faz scraping da página inicial e segue links, extraindo informações úteis para abordagem comercial."""
     
     session = requests.Session()
-     session.headers.update({
+    session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     })
     
@@ -105,7 +119,7 @@ def fetch_data_from_url(url,max_pages=10):
                
                 metatags = extract_metatags(soup)
                 pixels = extract_tracking_pixels(html_content)
-                technologies = identify_technologies(current_url)
+                
                 page_title = extract_page_title(soup)
                 social_links = extract_social_links(soup, current_url)
                 contact_info = extract_contact_info(soup, html_content)
@@ -115,7 +129,7 @@ def fetch_data_from_url(url,max_pages=10):
                 print("Título da Página:", page_title)
                 print("Metatags:", metatags)
                 print("Pixels:", pixels)
-                print("Tecnologias detectadas:", technologies)
+                
                 print("Links para Redes Sociais:", social_links)
                 print("Informações de Contato:", contact_info)
                 print("HTML tamanho:", len(html_content))
@@ -126,10 +140,10 @@ def fetch_data_from_url(url,max_pages=10):
                     scrape_page(link)
 
             else:
-                logging.warning(f"Falha ao acessar {current_url}: Status {response.status_code}")
+                logging.warning("Falha ao acessar %s: Status %s ",current_url,response.status_code)
 
         except requests.RequestException as e:
-            logging.error(f"Erro ao fazer scraping de {current_url}: {e}")
+            logging.error("Erro ao fazer scraping de  %s:  %s",current_url,e)
 
     
     scrape_page(url)
@@ -215,18 +229,6 @@ def extract_links(soup, base_url):
     return links
 
 
-def identify_technologies(url):
-    """Usa Wappalyzer para detectar as tecnologias usadas no site."""
-    try:
-        webpage = WebPage.new_from_url(url)
-        wappalyzer = Wappalyzer.latest()
-        technologies = wappalyzer.analyze(webpage)
-        return technologies
-    except Exception as e:
-        logging.error(f"Erro ao identificar tecnologias para {url}: {e}")
-        return []
-
-
 def send_to_datalake(lead_id, content):
     """Envia o conteúdo extraído para o datalake."""
     data = {
@@ -291,10 +293,10 @@ def get_lead_id_from_redis(redis_client, google_id):
         return None
 
 
-def consume_leads_from_rabbitmq(channel):
+def consume_leads_from_rabbitmq(channel,redis_client):
     """Função para consumir leads do RabbitMQ e processar os dados recebidos."""
     exchange_name = "leads_exchange"
-    queue_name = "leads_queue"
+    queue_name = "leads_queue_lead_search_to_website_fetcher"
 
    
     try:
@@ -304,14 +306,14 @@ def consume_leads_from_rabbitmq(channel):
             durable=True
         )
     except Exception as e:
-        logging.error(f"Falha ao declarar exchange: {e}")
+        logging.error("Falha ao declarar exchange: %s",e)
         return
 
     
     try:
         channel.queue_declare(queue=queue_name, durable=True)
     except Exception as e:
-        logging.error(f"Falha ao declarar fila: {e}")
+        logging.error("Falha ao declarar fila: %s",e)
         return
 
     
@@ -321,39 +323,54 @@ def consume_leads_from_rabbitmq(channel):
             exchange=exchange_name
         )
     except Exception as e:
-        logging.error(f"Falha ao vincular fila à exchange: {e}")
+        logging.error("Falha ao vincular fila à exchange: %s",e)
         return
 
-    def callback(ch, method, properties, body):
+    try:
+        channel.basic_consume(
+            queue=queue_name,
+            on_message_callback=lambda ch, method, properties, body: callback(ch, method, properties, body, redis_client),
+            auto_ack=False 
+        )
+        logging.info("Consumindo leads do RabbitMQ...")
+        channel.start_consuming()
+    except Exception as e:
+        logging.error("Erro ao consumir mensagens do RabbitMQ: %s",e)
+
+    def callback(ch, method, properties, body,redis_client):
         """Callback para processar mensagens da fila."""
         try:
            
             if not is_valid_json(body):
                 logging.warning("Mensagem recebida não é JSON válido")
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
                 return
 
-            logging.info(f"Mensagem recebida do RabbitMQ: {body.decode()}")
+            logging.info("Mensagem recebida do RabbitMQ: %s",{body.decode()})
             lead_data = json.loads(body)
 
             
-            save_lead_to_database(lead_data)
+            process_lead_data(lead_data,redis_client)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Erro ao decodificar JSON: {e}")
+            logging.error("Erro ao decodificar JSON:  %s",e)
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         except Exception as e:
-            logging.error(f"Erro ao processar a mensagem: {e}")
+            logging.error("Erro ao processar a mensagem:  %s",e)
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
     
     try:
         channel.basic_consume(
             queue=queue_name,
-            on_message_callback=callback,
-            auto_ack=True
+            on_message_callback=lambda ch, method, properties, body: callback(ch, method, properties, body, redis_client),
+            auto_ack=False
         )
         logging.info("Consumindo leads do RabbitMQ...")
         channel.start_consuming()
     except Exception as e:
-        logging.error(f"Erro ao consumir mensagens do RabbitMQ: {e}")
+        logging.error("Erro ao consumir mensagens do RabbitMQ:  %s",e)
 
 
 async def process_lead_data(lead_data, redis_client):
