@@ -33,7 +33,113 @@ var ctx = context.Background()
 var rabbitConn *amqp.Connection
 var rabbitChannel *amqp.Channel
 
-func ConnectToRedis() {
+
+
+func main() {
+
+	log.Println("Starting API service...")
+
+    _, channel, err := connectToRabbitMQ() 
+	if err != nil {
+		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
+	}
+	defer closeRabbitMQ()
+
+    log.Println("Conectando ao Redis...")
+    if err := ConnectToRedis(); err != nil {
+        log.Fatalf("Erro ao conectar ao Redis: %v", err)
+    }
+
+    if redisClient == nil {
+        log.Fatalf("Falha ao conectar ao Redis.")
+    }
+
+	log.Println("Conectando ao banco de dados...")
+    if err := db.Connect(); err != nil {
+        log.Fatalf("Erro ao conectar ao banco de dados: %v", err)
+    }
+    defer db.Close()
+
+    if err := db.Migrate(); err != nil {
+        log.Fatalf("Erro ao migrar o banco de dados: %v", err)
+    }
+
+    log.Println("Starting to consume leads from RabbitMQ...")
+ 	go consumeLeadsFromRabbitMQ(channel)
+
+    log.Println("Starting to consume companies from RabbitMQ...")
+    go consumeCompaniesFromRabbitMQ(channel)
+	
+	http.HandleFunc("/leads", leadHandler)
+    
+
+	
+	port := os.Getenv("PORT")
+
+	fmt.Println("API rodando na porta", port)
+	if port == "" {
+		log.Fatal("PORT não definido no ambiente")
+	} else {
+		fmt.Println("API rodando na porta", port)
+	}
+	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+    select {}
+}
+
+
+
+func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
+
+    if rabbitConn != nil && rabbitChannel != nil {
+        return rabbitConn, rabbitChannel, nil
+    }
+
+    rabbitmqHost := os.Getenv("RABBITMQ_HOST")
+    rabbitmqPort := os.Getenv("RABBITMQ_PORT")
+
+     if rabbitmqHost == "" || rabbitmqPort == "" {
+        return nil, nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
+    }
+
+	var conn *amqp.Connection
+    var ch *amqp.Channel
+    var err error
+
+   for i := 0; i < 5; i++ {
+        conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
+        if err == nil {
+            break
+        }
+        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
+        time.Sleep(10 * time.Second)
+    }
+
+    if err != nil {
+        return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
+    }
+
+   
+    ch, err = conn.Channel()
+    if err != nil {
+        return nil, nil, fmt.Errorf("failed to open RabbitMQ channel: %v", err)
+    }
+
+    err = ch.Qos(10, 0, false) 
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to set QoS: %v", err)
+	}
+
+
+
+    rabbitConn = conn
+    rabbitChannel = ch
+
+    return conn, ch, nil
+
+}
+
+func ConnectToRedis() error{
 	redisClient = redis.NewClient(&redis.Options{
 		Addr: "redis:6379", 
 		DB:   0,                
@@ -44,6 +150,7 @@ func ConnectToRedis() {
 		log.Fatalf("Erro ao conectar ao Redis: %v", err)
 	}
 	log.Println("Conectado ao Redis com sucesso.")
+    return nil
 }
 
 func SaveLeadToRedis(googleId string, leadId uuid.UUID) error {
@@ -358,52 +465,14 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 
 
 
-func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
-
-    if rabbitConn != nil && rabbitChannel != nil {
-        return rabbitConn, rabbitChannel, nil
-    }
-
-    rabbitmqHost := os.Getenv("RABBITMQ_HOST")
-    rabbitmqPort := os.Getenv("RABBITMQ_PORT")
-
-     if rabbitmqHost == "" || rabbitmqPort == "" {
-        return nil, nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
-    }
-
-	var conn *amqp.Connection
-    var ch *amqp.Channel
-    var err error
-
-   for i := 0; i < 5; i++ {
-        conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
-        if err == nil {
-            break
-        }
-        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
-        time.Sleep(10 * time.Second)
-    }
-
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
-    }
-
-   
-    ch, err = conn.Channel()
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to open RabbitMQ channel: %v", err)
-    }
-
-    rabbitConn = conn
-    rabbitChannel = ch
-
-    return conn, ch, nil
-
-}
-
 func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
 	exchangeName := "leads_exchange"
     queueName := "leads_queue"
+
+    args := amqp.Table{
+		"x-dead-letter-exchange": "dlx_exchange", // Enviar para Dead Letter Exchange em caso de falha
+		"x-message-ttl":          60000,          // TTL de 60 segundos
+	}
 
 	err := ch.ExchangeDeclare(
         exchangeName, 
@@ -424,7 +493,7 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
         false, // Delete when unused
         false, // Exclusive
         false, // No-wait
-        nil,   // Arguments
+        args,   // Arguments
     )
     if err != nil {
         log.Fatalf("Failed to register a consumer: %v", err)
@@ -445,7 +514,7 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
  msgs, err := ch.Consume(
         q.Name,
         "",
-        true,  // Auto-acknowledge
+        false,  // Auto-acknowledge
         false, // Exclusive
         false, // No-local
         false, // No-wait
@@ -457,25 +526,37 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
 
     go func() {
         for d := range msgs {
-
-            if !json.Valid(d.Body) {
-               
-                continue
-            }
-            
+                        
             log.Printf("Mensagem recebida do RabbitMQ pelo consumeLeadsFromRabbitMQ: %s", string(d.Body))
+            
             var leadData map[string]interface{}
-            err := json.Unmarshal(d.Body, &leadData)
-            if err != nil {
-                log.Printf("Error decoding JSON: %v", err)
-                continue
-            }
 
-       
-            err = saveLeadToDatabase(leadData)
-            if err != nil {
-                log.Printf("Failed to save lead: %v", err)
-            }
+            if json.Valid(d.Body) {
+				err := json.Unmarshal(d.Body, &leadData)
+                if err != nil {
+                    log.Printf("Erro ao decodificar JSON: %v", err)
+                    d.Nack(false, true) 
+                    continue
+                }
+
+                log.Printf("Processando lead: %v", leadData)
+                err = saveLeadToDatabase(leadData)
+				if err != nil {
+					log.Printf("Erro ao processar lead: %v", err)
+                    d.Nack(false, true) 
+                    continue
+				}
+                err = d.Ack(false)
+                if err != nil {
+                    log.Printf("Erro ao enviar ACK: %v", err)
+                }  
+				
+			} else {
+                log.Printf("Mensagem inválida, reenfileirando...")
+				d.Nack(false, true) 
+			}
+
+
         }
     }()
 
@@ -864,50 +945,3 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
     return nil
 }
 
-
-
-
-func main() {
-
-	log.Println("Starting API service...")
-
-    _, channel, err := connectToRabbitMQ() 
-	if err != nil {
-		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
-	}
-	defer closeRabbitMQ()
-
-    log.Println("Conectando ao Redis...")
-    ConnectToRedis()
-
-    if redisClient == nil {
-        log.Fatalf("Falha ao conectar ao Redis.")
-    }
-
-	log.Println("Connecting to the database...")
-	db.Connect()
-
-	defer db.Close()
-	db.Migrate()
-
-    log.Println("Starting to consume leads from RabbitMQ...")
-
- 	
-    go consumeLeadsFromRabbitMQ(channel)
-
-   
-    go consumeCompaniesFromRabbitMQ(channel)
-	
-	http.HandleFunc("/leads", leadHandler)
-
-	
-	port := os.Getenv("PORT")
-
-	fmt.Println("API rodando na porta", port)
-	if port == "" {
-		log.Fatal("PORT não definido no ambiente")
-	} else {
-		fmt.Println("API rodando na porta", port)
-	}
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}

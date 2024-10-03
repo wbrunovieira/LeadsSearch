@@ -27,13 +27,25 @@ func main() {
 
     log.Println("Starting the service...")
 
-   
+	conn, ch, err := connectToRabbitMQ()
+	if err != nil {
+		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
+	}
+	defer conn.Close()
+	defer ch.Close()
 
-    err := godotenv.Load()
+
+    err = godotenv.Load()
     if err != nil {
         log.Fatal("Error loading .env file")
     }
     log.Println(".env file loaded successfully")
+
+	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
+
+    if apiKey ==  "" {
+        log.Fatal("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
+    }
 
     db, err := setupDatabase()
 	if err != nil {
@@ -41,28 +53,7 @@ func main() {
 	}
 	defer db.Close()
 
-    
-   
-
-    conn, err := connectToRabbitMQ()
-	if err != nil {
-		log.Fatalf("Could not connect to RabbitMQ: %v", err)
-	}
-	defer conn.Close()
-
-   
-    apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
-
-    if apiKey ==  "" {
-        log.Fatal("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
-    }
-
-    ch, err := conn.Channel()
-    if err != nil {
-        log.Fatalf("Failed to open a channel: %v", err)
-    }
-    defer ch.Close()
-
+ 
     http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
         startSearchHandler(w, r, db, ch)
     })
@@ -74,6 +65,45 @@ func main() {
 	}
    
 }
+
+
+func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
+    log.Println("Conectando ao RabbitMQ...")
+    rabbitmqHost := os.Getenv("RABBITMQ_HOST")
+    rabbitmqPort := os.Getenv("RABBITMQ_PORT")
+
+    
+    if rabbitmqHost == "" || rabbitmqPort == "" {
+        return nil, nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
+    }
+
+    log.Printf("Conectado ao RabbitMQ em %s:%s", rabbitmqHost, rabbitmqPort)
+
+    var conn *amqp.Connection
+    var ch *amqp.Channel
+    var err error
+
+   
+    for i := 0; i < 5; i++ {
+        conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
+        if err == nil {
+            
+            ch, err = conn.Channel()
+            if err != nil {
+                return nil, nil, fmt.Errorf("failed to open RabbitMQ channel: %v", err)
+            }
+            return conn, ch, nil
+        }
+
+        
+        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
+        time.Sleep(10 * time.Second)
+    }
+
+    
+    return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after retries: %v", err)
+}
+
 
 func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *amqp.Channel) {
 	if r.Method != http.MethodPost {
@@ -350,32 +380,6 @@ func publishLeadToRabbitMQ(ch *amqp.Channel, leadData map[string]interface{}) er
 
     log.Printf("Lead published to RabbitMQ: %s", body)
     return nil
-}
-
-
-func connectToRabbitMQ() (*amqp.Connection, error) {
-    log.Println("Conectando ao RabbitMQ...")
-    rabbitmqHost := os.Getenv("RABBITMQ_HOST")
-    rabbitmqPort := os.Getenv("RABBITMQ_PORT")
-    if rabbitmqHost ==  "" || rabbitmqPort == ""{
-        return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
-    }
-    log.Printf("Conectado ao RabbitMQ em %s:%s", rabbitmqHost, rabbitmqPort)
-
-	var conn *amqp.Connection
-    var err error
-
-	for i := 0; i < 5; i++ {
-        conn, err = amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", rabbitmqHost, rabbitmqPort))
-        if err == nil {
-            return conn, nil
-        }
-
-        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
-        time.Sleep(10 * time.Second)
-    }
-
-    return nil, fmt.Errorf("failed to connect to RabbitMQ at %s:%s after 5 retries: %v", rabbitmqHost, rabbitmqPort, err)
 }
 
 

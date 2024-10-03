@@ -12,7 +12,7 @@ import (
 var DB *gorm.DB
 
 
-func Connect() {
+func Connect() error{
 	var err error
 	dsn := "host=db user=postgres password=postgres dbname=leadsdb port=5432 sslmode=disable"
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -20,6 +20,7 @@ func Connect() {
 		log.Fatal("Falha ao conectar ao banco de dados:", err)
 	}
 	fmt.Println("Conexão com o banco de dados bem-sucedida.")
+	return nil
 }
 
 

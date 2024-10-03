@@ -5,7 +5,7 @@ import (
 )
 
 
-func Migrate() {
+func Migrate() error {
 
 	err := DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error
     if err != nil {
@@ -21,4 +21,5 @@ func Migrate() {
 	if err != nil {
 		panic("Falha ao migrar banco de dados: " + err.Error())
 	}
+	return nil
 }
