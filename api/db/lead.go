@@ -41,7 +41,8 @@ type Lead struct {
 	CompanySize        string    `gorm:"size:50"`
 	Revenue                 float64   `gorm:"type:numeric"`
 	EmployeesCount          int       `gorm:"default:0"`   
-	Description             string    `gorm:"type:text"`   
+	Description string `gorm:"type:text"`
+  
 	PrimaryActivity         string     `gorm:"type:text"`   
 	SecondaryActivities     string     `gorm:"type:text"` 
 	Types string `gorm:"type:text"`

@@ -1,6 +1,7 @@
 import json
 import http.client
 import json
+import time
 
 import os
 import re
@@ -16,6 +17,7 @@ from bs4 import BeautifulSoup
 from redis import Redis
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
+from email_validator import validate_email, EmailNotValidError, caching_resolver
 
 import logging
 
@@ -446,22 +448,22 @@ def clean_text(text):
     return text.strip()
 
 
-def get_lead_id_from_redis(redis_client, google_id):
-    """Obtém o lead_id a partir do google_id no Redis."""
-    try:
-        redis_key = f"google_lead:{google_id}"
-
-        lead_id = redis_client.get(redis_key)
-
-        if lead_id:
-            print(f"Lead ID {lead_id.decode('utf-8')} encontrado para o Google ID {google_id}.")
-            return lead_id.decode('utf-8')
-        else:
-            print(f"Lead ID não encontrado no Redis para o Google ID {google_id}.")
+def get_lead_id_from_redis(redis_client, google_id, retries=3, delay=1):
+    """Obtém o lead_id a partir do google_id no Redis com tentativas de reprocessamento."""
+    redis_key = f"google_lead:{google_id}"
+    for attempt in range(retries):
+        try:
+            lead_id = redis_client.get(redis_key)
+            if lead_id:
+                print(f"Lead ID {lead_id.decode('utf-8')} encontrado para o Google ID {google_id}.")
+                return lead_id.decode('utf-8')
+            else:
+                print(f"Lead ID não encontrado no Redis para o Google ID {google_id}. Tentativa {attempt + 1}/{retries}")
+                time.sleep(delay)
+        except Exception as e:
+            print(f"Erro ao buscar Lead ID no Redis: {e}")
             return None
-    except Exception as e:
-        print(f"Erro ao buscar Lead ID no Redis: {e}")
-        return None
+    return None
 
 
 def consume_leads_from_rabbitmq(channel,redis_client):
@@ -535,11 +537,18 @@ def consume_leads_from_rabbitmq(channel,redis_client):
 
 def process_lead_data(lead_data, redis_client):
     lead_id = get_lead_id_from_redis(redis_client, lead_data.get("PlaceID"))
+    print("website-fetcher process_lead_data lead_id",lead_id)
+    print("website-fetcher process_lead_data PlaceID",lead_data.get("PlaceID"))
     if not lead_id:
         logging.warning("Lead ID não encontrado para o Google ID %s", lead_data.get("PlaceID"))
         return
 
     website = lead_data.get("Website", "")
+    print("website-fetcher process_lead_data website",website)
+    phone_is_whatsapp = lead_data.get("InternationalPhoneNumber", "")
+    print("website-fetcher process_lead_data phone_is_whatsApp",phone_is_whatsapp)
+    email_is_validated = lead_data.get("Email ", "")
+    print("website-fetcher process_lead_data email_is_validated",email_is_validated)
     if website:
         if website.startswith("https://www.instagram.com"):
             logging.info("Instagram URL detectada, ignorando scraping.")
@@ -549,9 +558,107 @@ def process_lead_data(lead_data, redis_client):
             fetch_data_from_url(website)
             domain_whois(website)
 
+    if phone_is_whatsapp:
+        is_whatsapp(phone_is_whatsapp)
+
+    if email_is_validated:
+        is_mail_validate(email_is_validated)
+
+
+def is_whatsapp(phone_is_whatsapp):
+    formatted_phone = format_phone_number(phone_is_whatsapp)
+    url = os.getenv('URL_EVOLUTION')
+    headers = {
+        'Content-Type': 'application/json',
+        'apikey': os.getenv('EVOLUTION_WHATSAPP_API')  
+    }
+    payload = {
+        "numbers": [
+            formatted_phone
+        ]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            for item in response_data:
+                exists = item.get("exists", False)
+                jid = item.get("jid", "")
+                name = item.get("name", "")
+                number = item.get("number", "")
+                print(f"Exists: {exists}, JID: {jid}, Name: {name}, Number: {number}")
+            return response_data
+
+        else:
+            print(f"Erro ao enviar mensagem: Código de status {response.status_code}, Resposta: {response.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao fazer solicitação: {e}")
+        return False
+
+def format_phone_number(phone):
+   
+    phone = re.sub(r'\D', '', phone) 
+
+    print('phone111',phone)
+    if phone.startswith("55"):
+        print('phone 2',phone)
+        return phone
+    else:
+        
+        return "55" + phone
+        print('phone final',phone)
+
+def is_mail_validate(email):
+    """
+    Validates an email address using the email-validator library.
+    :param email: str - The email address to validate.
+    :return: dict - Returns a dictionary with validation results or error message.
+    """
+    
+    resolver = caching_resolver(timeout=10)
+
+    try:
+       
+        email_info = validate_email(
+            email,
+            check_deliverability=True,  
+            dns_resolver=resolver,
+            allow_smtputf8=True,  
+            allow_quoted_local=False,  
+            allow_display_name=True,  
+        )
+
+        
+        result = {
+            "normalized": email_info.normalized,
+            "ascii_email": email_info.ascii_email,
+            "local_part": email_info.local_part,
+            "domain": email_info.domain,
+            "smtputf8": email_info.smtputf8,
+            "is_valid": True,
+            "error": None,
+        }
+        print("email verification result",result)
+
+    except EmailNotValidError as e:
+       
+        result = {
+            "is_valid": False,
+            "error": str(e),
+        }
+
+    return result
+
+
+
+
 def domain_whois(domain):
     """Consulta o domínio no RDAP do registro.br ou na API do zozor54 se o domínio não terminar com .br"""
-    parsed_domain = urlparse(domain).netloc 
+    parsed_domain = urlparse(domain).netloc
+    print("aqui esta o dominio que vamos trabalhar no whois parsed_domain",parsed_domain) 
     if parsed_domain.endswith(".br"):
         
         url = f"https://rdap.registro.br/domain/{parsed_domain}"
@@ -584,21 +691,27 @@ def domain_whois(domain):
     else:
        
         try:
-            conn = http.client.HTTPSConnection("zozor54-whois-lookup-v1.p.rapidapi.com")
+
+            url = "https://zozor54-whois-lookup-v1.p.rapidapi.com/"
+
+            
+            querystring = {"domain": parsed_domain, "format": "json", "_forceRefresh": "0"}
+
+
             headers = {
-                'x-rapidapi-key': os.getenv('RAPIDAPI_KEY'),  
-                'x-rapidapi-host': "zozor54-whois-lookup-v1.p.rapidapi.com"
+                'x-rapidapi-key': os.getenv('RAPIDAPI_KEY_LOOKUP'), 
+                "x-rapidapi-host": "zozor54-whois-lookup-v1.p.rapidapi.com"
             }
 
-            conn.request("GET", f"/ssl-cert-check?domain={parsed_domain}", headers=headers)
+            response = requests.get(url, headers=headers, params=querystring)
 
-            res = conn.getresponse()
-            data = res.read()
+            if response.status_code != 200:
+                print(f"Erro ao consultar o domínio {parsed_domain}: Código de status {response.status_code}")
+                return None
 
-            
-            whois_data = json.loads(data.decode("utf-8"))
+            whois_data = response.json()
+            print("whoisdata do int",whois_data)
 
-            
             extracted_data = {
                 'Domain': whois_data.get('name'),
                 'Nameservers': whois_data.get('nameserver', []),
@@ -609,16 +722,21 @@ def domain_whois(domain):
                 'Registrar Email': whois_data.get('registrar', {}).get('email'),
                 'Registrar Phone': whois_data.get('registrar', {}).get('phone'),
                 'Status': whois_data.get('status', []),
-                'Owner Email': whois_data['contacts']['owner'][0]['email'] if whois_data.get('contacts', {}).get('owner') else None,
-                'Admin Email': whois_data['contacts']['admin'][0]['email'] if whois_data.get('contacts', {}).get('admin') else None,
-                'Tech Email': whois_data['contacts']['tech'][0]['email'] if whois_data.get('contacts', {}).get('tech') else None
-            }
+                'Owner Email': whois_data.get('contacts', {}).get('owner', [{}])[0].get('email'),
+                'Admin Email': whois_data.get('contacts', {}).get('admin', [{}])[0].get('email'),
+                'Tech Email': whois_data.get('contacts', {}).get('tech', [{}])[0].get('email')
+                    }
             print("extracted_data inter",extracted_data)
             return extracted_data
 
+        except requests.exceptions.RequestException as e:
+            print(f"Erro de conexão ao consultar o domínio {parsed_domain}: {e}")
+        except KeyError as e:
+            print(f"Erro ao acessar uma chave no retorno da API para o domínio {parsed_domain}: {e}")
         except Exception as e:
-            print(f"Erro ao consultar o domínio {parsed_domain} na API zozor54: {e}")
-            return None
+            print(f"Erro inesperado ao consultar o domínio {parsed_domain}: {e}")
+        return None
+
 def clean_address(raw_address):
     """Limpa o campo de endereço para remover tags ou informações complexas."""
     # O endereço no RDAP pode estar dentro de um array, vamos tratar isso

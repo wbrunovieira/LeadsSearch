@@ -22,6 +22,7 @@ logging.info("Iniciando o serviço linkfetcher")
 
 allowed_languages = ['pt', 'en', 'es']
 
+MESSAGE_LIMIT = 10
 
 def setup_redis():
     """Configura a conexão com o Redis."""
@@ -189,14 +190,14 @@ def process_data_from_scrapper(body, redis_client,channel,method):
 
             for company in companies_info:
                 google_id = company.get('google_id')
-                print("vindo do google_id for company in companies_info",google_id)
+                print("vindo do google_id for company in companies_info link-fetcher",google_id)
                 
                 
                 lead_id = get_lead_id_from_redis(redis_client, google_id)
-                print("vindo do lead_id for company in companies_info",lead_id)
+                print("vindo do lead_id for company in companies_info link-fetcher",lead_id)
 
                 if not lead_id:
-                    logging.warning("Lead ID não encontrado para Google ID {%s}",google_id)
+                    logging.warning("link-fetcher Lead ID não encontrado para Google ID {%s}",google_id)
                     continue
             
             for result in enumerate(organic_results[:5]):
@@ -223,7 +224,7 @@ def process_data_from_scrapper(body, redis_client,channel,method):
 
 def callback(channel, method, properties, body,redis_client):
     """Callback para processar mensagens da fila."""
-    logging.info("Mensagem recebida do RabbitMQ.")
+    logging.info("Mensagem recebida do RabbitMQ.link-fetcher")
     try:
         process_data_from_scrapper(body, redis_client, channel, method)
     except Exception as e:
@@ -241,8 +242,16 @@ def main():
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
 
-    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=False)
+    for _ in range(MESSAGE_LIMIT):
+            method, properties, body = channel.basic_get(queue='datalake_queue', auto_ack=False)
+            if body:
+                callback(channel, method, properties, body, redis_client)
+            else:
+                logging.info("Nenhuma mensagem na fila para processar.")
+                break
+
     logging.info(" [*] Esperando por mensagens no linkfetcher. Para sair pressione CTRL+C")
+
     try:
         channel.start_consuming()
     except KeyboardInterrupt:

@@ -562,7 +562,6 @@ func saveCompanyData(data map[string]interface{}) (uuid.UUID, error) {
 }
 
 
-
 func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]interface{}) error {
     
     lead, err := db.GetLeadByID(leadID)  
@@ -875,7 +874,6 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusCreated)
     fmt.Fprintf(w, "Lead e LeadStep salvos com sucesso!")
 }
-
 
 
 func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {

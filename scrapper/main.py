@@ -69,7 +69,7 @@ async def fetch_serper_data(name, city):
     print(f"[LOG] Dados recebidos da API Serper: {data.decode('utf-8')}")
     return data.decode("utf-8")
 
-    
+   
 
 async def fetch_data_from_api(api_key, url):
     """Faz uma requisição assíncrona à API de scraping com a URL especificada."""

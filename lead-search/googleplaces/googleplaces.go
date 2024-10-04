@@ -3,7 +3,6 @@ package googleplaces
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -14,6 +13,10 @@ import (
 
 type Service struct {
 	APIKey string
+}
+
+type TokenStore struct {
+	QueryTokens map[string]string `json:"query_tokens"`
 }
 
 
@@ -87,36 +90,115 @@ func (s *Service) GeocodeZip(zipCode string) (string, error) {
 	return "", fmt.Errorf("no results found for zipCode: %s", zipCode)
 }
 
+func generateQueryKey(query string, location string, radius int) string {
+	return fmt.Sprintf("%s|%s|%d", query, location, radius)
+}
 
-func saveNextPageToken(token string) error {
+// func saveNextPageToken(token string) error {
 	
-	err := os.WriteFile("/app/lead-search/next_page_token.txt", []byte(token), 0644)
+// 	err := os.WriteFile("/app/lead-search/next_page_token.txt", []byte(token), 0644)
 
-	if err != nil {
-		log.Printf("Erro ao salvar o next_page_token: %v", err)
-		return err
+// 	if err != nil {
+// 		log.Printf("Erro ao salvar o next_page_token: %v", err)
+// 		return err
+// 	}
+// 	log.Println("next_page_token salvo com sucesso")
+// 	return nil
+// }
+
+func saveToken(queryKey string, token string) error {
+	var tokenStore TokenStore
+
+	
+	file, err := os.ReadFile("next_page_tokens.json")
+	if err == nil {
+		err = json.Unmarshal(file, &tokenStore)
+		if err != nil {
+			return fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
+		}
+	} else {
+		tokenStore = TokenStore{QueryTokens: make(map[string]string)}
 	}
+
+	if tokenStore.QueryTokens == nil {
+        log.Println("Mapa QueryTokens não está inicializado. Inicializando agora.")
+        tokenStore.QueryTokens = make(map[string]string)
+    }
+
+	
+	tokenStore.QueryTokens[queryKey] = token
+
+	
+	tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
+	if err != nil {
+		return fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
+	}
+
+	err = os.WriteFile("next_page_tokens.json", tokenStoreBytes, 0644)
+	if err != nil {
+		return fmt.Errorf("erro ao salvar o arquivo JSON: %v", err)
+	}
+
 	log.Println("next_page_token salvo com sucesso")
 	return nil
 }
 
-func LoadNextPageToken() (string, error) {
-	file, err := os.Open("next_page_token.txt")
-	if err != nil {
-		log.Printf("Erro ao abrir o arquivo next_page_token: %v", err)
-		return "", err
-	}
-	defer file.Close()
+// func LoadNextPageToken() (string, error) {
+// 	file, err := os.Open("next_page_token.txt")
+// 	if err != nil {
+// 		log.Printf("Erro ao abrir o arquivo next_page_token: %v", err)
+// 		return "", err
+// 	}
+// 	defer file.Close()
 
-	tokenBytes, err := io.ReadAll(file)
+// 	tokenBytes, err := io.ReadAll(file)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	token := string(tokenBytes)
+// 	log.Printf("next_page_token carregado: %s", token)
+// 	return token, nil
+// }
+
+func loadToken(queryKey string) (string, error) {
+	var tokenStore TokenStore
+
+	
+	file, err := os.ReadFile("next_page_tokens.json")
 	if err != nil {
-		return "", err
+		if os.IsNotExist(err) {
+			
+			tokenStore = TokenStore{QueryTokens: make(map[string]string)}
+
+			tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
+			}
+
+			err = os.WriteFile("next_page_tokens.json", tokenStoreBytes, 0644)
+			if err != nil {
+				return "", fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
+			}
+
+			return "", nil
+		}
+		return "", fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
 	}
-	token := string(tokenBytes)
-	log.Printf("next_page_token carregado: %s", token)
-	return token, nil
+
+	
+	err = json.Unmarshal(file, &tokenStore)
+	if err != nil {
+		return "", fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
+	}
+
+	
+	if token, exists := tokenStore.QueryTokens[queryKey]; exists {
+		log.Printf("next_page_token carregado para a consulta %s: %s", queryKey, token)
+		return token, nil
+	}
+
+	return "", nil
 }
-
 
 
 func (s *Service) SearchPlaces(query string, location string, radius int, maxPages int) ([]map[string]interface{}, error) {
@@ -124,7 +206,8 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
     url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
     var allPlaces []map[string]interface{}
-    pageToken, err := LoadNextPageToken()  
+	queryKey := generateQueryKey(query, location, radius)
+    pageToken, err := loadToken(queryKey) 
 	if err != nil {
 		return nil, fmt.Errorf("erro ao carregar next_page_token: %v", err)
 	}
@@ -191,13 +274,13 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
 			
 			log.Printf("Página %d obtida, total de resultados até agora: %d", pagesFetched, totalResults)
             if result.NextPageToken != "" {
-				err := saveNextPageToken(result.NextPageToken)
+				err := saveToken(queryKey, result.NextPageToken)
 				if err != nil {
 					log.Printf("Erro ao salvar o next_page_token: %v", err)
 				}
 			} else {
 				
-				saveNextPageToken("")
+				saveToken(queryKey, "")
 				break
 			}
 
