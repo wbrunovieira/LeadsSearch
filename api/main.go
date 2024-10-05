@@ -576,21 +576,24 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
 
     if v, ok := cnpjDetails["razao_social"].(string); ok {
         if lead.RegisteredName == "" {
-            
             lead.RegisteredName = v
         } else if lead.RegisteredName != v {
             
             razaoSocialUpdate := fmt.Sprintf("Razão Social encontrada na Receita Federal: %s", v)
-
-            if lead.Description == "" {
-                
-                lead.Description = razaoSocialUpdate
+    
+            
+            if strings.Contains(lead.Description, razaoSocialUpdate) {
+                log.Printf("Razão Social já está presente em lead.Description: %s", razaoSocialUpdate)
             } else {
-                
-                lead.Description = fmt.Sprintf("%s\n%s", lead.Description, razaoSocialUpdate)
+                if lead.Description == "" {
+                    lead.Description = razaoSocialUpdate
+                } else {
+                    lead.Description = fmt.Sprintf("%s\n%s", lead.Description, razaoSocialUpdate)
+                }
             }
         }
     }
+    
 
     if v, ok := cnpjDetails["atividade_principal"].(map[string]interface{}); ok {
         if descricao, ok := v["descricao"].(string); ok {
@@ -765,12 +768,30 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
     
     if len(additionalInfo) > 0 {
         additionalInfoStr := fmt.Sprintf("Conteúdos adicionais encontrados na Receita Federal: %s", strings.Join(additionalInfo, ", "))
-        if lead.Description == "" {
-            lead.Description = additionalInfoStr
-        } else {
-            lead.Description = fmt.Sprintf("%s\n%s", lead.Description, additionalInfoStr)
+    
+        
+        descriptionParts := strings.Split(lead.Description, "\n")
+        uniqueInfo := true
+    
+        
+        for _, part := range descriptionParts {
+            if part == additionalInfoStr {
+                uniqueInfo = false
+                break
+            }
+        }
+    
+        
+        if uniqueInfo {
+            if lead.Description == "" {
+                lead.Description = additionalInfoStr
+            } else {
+                lead.Description = fmt.Sprintf("%s\n%s", lead.Description, additionalInfoStr)
+            }
         }
     }
+    
+    
 
     err = db.UpdateLead(lead)
     if err != nil {

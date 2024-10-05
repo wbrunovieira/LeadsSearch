@@ -94,17 +94,47 @@ func generateQueryKey(query string, location string, radius int) string {
 	return fmt.Sprintf("%s|%s|%d", query, location, radius)
 }
 
-// func saveNextPageToken(token string) error {
-	
-// 	err := os.WriteFile("/app/lead-search/next_page_token.txt", []byte(token), 0644)
 
-// 	if err != nil {
-// 		log.Printf("Erro ao salvar o next_page_token: %v", err)
-// 		return err
-// 	}
-// 	log.Println("next_page_token salvo com sucesso")
-// 	return nil
-// }
+
+func loadToken(queryKey string) (string, error) {
+	var tokenStore TokenStore
+
+	
+	file, err := os.ReadFile("next_page_tokens.json")
+	if err != nil {
+		if os.IsNotExist(err) {
+			
+			tokenStore = TokenStore{QueryTokens: make(map[string]string)}
+
+			tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
+			}
+
+			err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
+			if err != nil {
+				return "", fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
+			}
+
+			return "", nil
+		}
+		return "", fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
+	}
+
+	
+	err = json.Unmarshal(file, &tokenStore)
+	if err != nil {
+		return "", fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
+	}
+
+	
+	if token, exists := tokenStore.QueryTokens[queryKey]; exists {
+		log.Printf("next_page_token carregado para a consulta %s: %s", queryKey, token)
+		return token, nil
+	}
+
+	return "", nil
+}
 
 func saveToken(queryKey string, token string) error {
 	var tokenStore TokenStore
@@ -134,7 +164,7 @@ func saveToken(queryKey string, token string) error {
 		return fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
 	}
 
-	err = os.WriteFile("next_page_tokens.json", tokenStoreBytes, 0644)
+	err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
 	if err != nil {
 		return fmt.Errorf("erro ao salvar o arquivo JSON: %v", err)
 	}
@@ -143,62 +173,6 @@ func saveToken(queryKey string, token string) error {
 	return nil
 }
 
-// func LoadNextPageToken() (string, error) {
-// 	file, err := os.Open("next_page_token.txt")
-// 	if err != nil {
-// 		log.Printf("Erro ao abrir o arquivo next_page_token: %v", err)
-// 		return "", err
-// 	}
-// 	defer file.Close()
-
-// 	tokenBytes, err := io.ReadAll(file)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	token := string(tokenBytes)
-// 	log.Printf("next_page_token carregado: %s", token)
-// 	return token, nil
-// }
-
-func loadToken(queryKey string) (string, error) {
-	var tokenStore TokenStore
-
-	
-	file, err := os.ReadFile("next_page_tokens.json")
-	if err != nil {
-		if os.IsNotExist(err) {
-			
-			tokenStore = TokenStore{QueryTokens: make(map[string]string)}
-
-			tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
-			if err != nil {
-				return "", fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
-			}
-
-			err = os.WriteFile("next_page_tokens.json", tokenStoreBytes, 0644)
-			if err != nil {
-				return "", fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
-			}
-
-			return "", nil
-		}
-		return "", fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
-	}
-
-	
-	err = json.Unmarshal(file, &tokenStore)
-	if err != nil {
-		return "", fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
-	}
-
-	
-	if token, exists := tokenStore.QueryTokens[queryKey]; exists {
-		log.Printf("next_page_token carregado para a consulta %s: %s", queryKey, token)
-		return token, nil
-	}
-
-	return "", nil
-}
 
 
 func (s *Service) SearchPlaces(query string, location string, radius int, maxPages int) ([]map[string]interface{}, error) {

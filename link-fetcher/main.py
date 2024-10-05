@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from functools import partial
 
 # pylint: disable=E0401
 from langdetect import detect, LangDetectException
@@ -242,6 +243,8 @@ def main():
     connection = setup_rabbitmq()
     channel = setup_channel(connection)
 
+    callback_with_redis = partial(callback, redis_client=redis_client)
+
     for _ in range(MESSAGE_LIMIT):
             method, properties, body = channel.basic_get(queue='datalake_queue', auto_ack=False)
             if body:
@@ -262,7 +265,7 @@ def main():
      
         
     
-    channel.basic_consume(queue='datalake_queue', on_message_callback=callback, auto_ack=False)
+    channel.basic_consume(queue='datalake_queue', on_message_callback=callback_with_redis, auto_ack=False)
 
     channel.start_consuming()
     

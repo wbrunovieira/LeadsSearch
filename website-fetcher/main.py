@@ -264,7 +264,7 @@ def extract_links(soup, base_url):
 def extract_address_from_html(soup):
     """Tenta extrair o endereço da página a partir de diferentes padrões comuns em sites."""
     
-    # Verifica se existe algum esquema JSON-LD com informações de endereço
+    
     for script in soup.find_all('script', type='application/ld+json'):
         try:
             json_data = json.loads(script.string)
@@ -739,15 +739,16 @@ def domain_whois(domain):
 
 def clean_address(raw_address):
     """Limpa o campo de endereço para remover tags ou informações complexas."""
-    # O endereço no RDAP pode estar dentro de um array, vamos tratar isso
-    if isinstance(raw_address, list):
-        # Converte a lista de endereço em uma string concatenada
-        raw_address = ", ".join(filter(None, raw_address))  # Junta os elementos não vazios da lista com vírgulas
     
-    # Faz uma limpeza adicional para remover qualquer resíduo de tags ou estruturas
-    clean_address = re.sub(r'<[^>]*>', '', raw_address)  # Remove tags HTML
-    clean_address = re.sub(r'[\r\n]+', ' ', clean_address)  # Remove quebras de linha
-    clean_address = re.sub(r'\{.*?\}', '', clean_address)  # Remove conteúdo entre chaves (caso exista)
+    if isinstance(raw_address, list):
+        
+        raw_address = ", ".join(filter(None, raw_address))  
+    
+    
+    clean_address1 = re.sub(r'<[^>]*>', '', raw_address)
+    clean_address2 = re.sub(r'[\r\n]+', ' ',clean_address1)
+    clean_address = re.sub(r'\{.*?\}', '',clean_address2)  
+    print("clean_address",clean_address)
     
     return clean_address.strip()
 
@@ -769,7 +770,7 @@ def detect_cloudflare_protection(soup, html_content):
         "You must enable Javascript in your browser in order to decode the e-mail address"
     ]
 
-    # Verifica se o conteúdo da página contém sinais de proteção do Cloudflare
+   
     for indicator in protection_indicators:
         if indicator in html_content or indicator in soup.title.string:
             return True
@@ -780,7 +781,7 @@ def handle_cloudflare_protected_pages(current_url, soup, html_content, cloudflar
     """Verifica se a página está protegida por Cloudflare e registra."""
     if "Please enable cookies." in html_content and "Cloudflare" in html_content:
         cloudflare_pages.append(current_url)
-        logging.info(f"Página protegida por Cloudflare detectada: {current_url}")
+        logging.info("Página protegida por Cloudflare detectada: %s",current_url)
         return True
     return False
 
