@@ -142,10 +142,28 @@ func GetLeadByID(leadID uuid.UUID) (*Lead, error) {
 
 
 func UpdateLead(lead *Lead) error {
-	result := DB.Save(lead)
-	if result.Error != nil {
-		return fmt.Errorf("Erro ao atualizar o lead: %v", result.Error)
-	}
-	return nil
+    existingLead, err := GetLeadByID(lead.ID)
+    if err != nil {
+        return fmt.Errorf("Erro ao buscar o lead: %v", err)
+    }
+
+    if existingLead == nil {
+        return fmt.Errorf("Lead não encontrado para ID: %s", lead.ID)
+    }
+
+	if lead.Description != "" {
+        if existingLead.Description != "" {
+            existingLead.Description = fmt.Sprintf("%s\n%s", existingLead.Description, lead.Description)
+        } else {
+            existingLead.Description = lead.Description
+        }
+    }
+
+    result := DB.Save(existingLead)
+    if result.Error != nil {
+        return fmt.Errorf("Erro ao atualizar o lead: %v", result.Error)
+    }
+    return nil
 }
+
 

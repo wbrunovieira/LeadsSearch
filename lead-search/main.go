@@ -140,7 +140,8 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 }
 
 	fmt.Fprintf(w, "Search started for categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radiusInt)
-	
+    
+    
 	
 }
 
@@ -202,6 +203,16 @@ func setupDatabase() (*sql.DB, error) {
 			status INTEGER DEFAULT 0 -- campo de status
 		);
 
+        CREATE TABLE IF NOT EXISTS query_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT,
+            location TEXT,
+            radius INTEGER,
+            pages_fetched INTEGER,
+            leads_extracted INTEGER,
+            next_page_token TEXT
+        );
+
 		CREATE TABLE IF NOT EXISTS search_progress (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			categoria_id INTEGER,
@@ -210,9 +221,13 @@ func setupDatabase() (*sql.DB, error) {
 			city_id INTEGER,
 			district_id INTEGER,
 			zipcode_id INTEGER,
+			pages_fetched INTEGER DEFAULT 0,
+			leads_extracted INTEGER DEFAULT 0,
 			search_done INTEGER DEFAULT 0, -- campo para indicar se a pesquisa foi concluída
 			search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- data de criação
+
 			FOREIGN KEY(categoria_id) REFERENCES categoria(id),
+			
 			FOREIGN KEY(country_id) REFERENCES country(id),
 			FOREIGN KEY(state_id) REFERENCES state(id),
 			FOREIGN KEY(city_id) REFERENCES city(id),
@@ -230,55 +245,73 @@ func setupDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
+func updateSearchProgress(db *sql.DB, progressID int, pagesFetched int, leadsExtracted int, searchDone bool) error {
+    searchDoneValue := 0
+    if searchDone {
+        searchDoneValue = 1
+    }
 
-func startSearch(categoryID string,  zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
-	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
-	}
+    query := `
+        UPDATE search_progress 
+        SET pages_fetched = ?, leads_extracted = ?, search_done = ? 
+        WHERE id = ?`
+    
+    _, err := db.Exec(query, pagesFetched, leadsExtracted, searchDoneValue, progressID)
+    if err != nil {
+        return fmt.Errorf("Failed to update search progress: %v", err)
+    }
+
+    log.Printf("Search progress updated: %d pages, %d leads extracted, done: %v", pagesFetched, leadsExtracted, searchDone)
+    return nil
+}
+
+
+func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
+    apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
+    if apiKey == "" {
+        return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
+    }
 
     categoryName, err := repository.GetCategoryNameByID(db, categoryID)
-	if err != nil {
-		return fmt.Errorf("Failed to get category name: %v", err)
-	}
-  
+    if err != nil {
+        return fmt.Errorf("Failed to get category name: %v", err)
+    }
 
-	locationInfo, err := repository.GetLocationInfoByZipcodeID(db, zipcodeID)
-	if err != nil {
-		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
-	}
-
-   
+    locationInfo, err := repository.GetLocationInfoByZipcodeID(db, zipcodeID)
+    if err != nil {
+        return fmt.Errorf("Failed to get location info by zipcode: %v", err)
+    }
 
     startZip, err := repository.GetFirstZipCodeInRange(db, zipcodeID)
     if err != nil {
         return fmt.Errorf("Failed to get location info by zipcode: %v", err)
     }
 
-	progress := repository.SearchProgress{
-		CategoriaID: categoryID,
-		CountryID:   locationInfo.CountryID,
-		StateID:     locationInfo.StateID,
-		CityID:      locationInfo.CityID,
-		DistrictID:  locationInfo.DistrictID,
-		ZipcodeID:   locationInfo.ZipcodeID,
-		Radius:      radius,
-		SearchDone:  0, 
-	}
+    progress := repository.SearchProgress{
+        CategoriaID: categoryID,
+        CountryID:   locationInfo.CountryID,
+        StateID:     locationInfo.StateID,
+        CityID:      locationInfo.CityID,
+        DistrictID:  locationInfo.DistrictID,
+        ZipcodeID:   locationInfo.ZipcodeID,
+        Radius:      radius,
+        SearchDone:  0,
+    }
 
-	progressID, err := repository.InsertSearchProgress(db, progress)
-	if err != nil {
-		return fmt.Errorf("Failed to insert search progress: %v", err)
-	}
+    progressID, err := repository.InsertSearchProgress(db, progress)
+    if err != nil {
+        return fmt.Errorf("Failed to insert search progress: %v", err)
+    }
 
     cityName, err := repository.GetCityNameByID(db, locationInfo.CityID)
     if err != nil {
         return fmt.Errorf("Failed to get city name: %v", err)
     }
 
-	log.Printf("Search progress inserted with ID: %d", progressID)
+    log.Printf("Search progress inserted with ID: %d", progressID)
 
-	maxPages := 1
+    maxPages := 1
+    totalLeadsExtracted := 0
 
     service := googleplaces.NewService(apiKey)
 
@@ -287,47 +320,45 @@ func startSearch(categoryID string,  zipcodeID int, radius int, db *sql.DB, ch *
         log.Fatalf("Failed to get coordinates for city: %v", err)
     }
 
+    for currentPage := 1; currentPage <= maxPages; currentPage++ {
+        log.Printf("Iniciando busca na página %d para a categoria %s na cidade %s", currentPage, categoryName, locationInfo.CityName)
 
-	for currentPage := 1; currentPage <= maxPages; currentPage++ {
-		log.Printf("Iniciando busca na página %d para a categoria %s na cidade %s", currentPage, categoryName, locationInfo.CityName)
+        placeDetailsFromSearch, err := service.SearchPlaces(categoryName, coordinates, radius, maxPages)
+        if err != nil {
+            return fmt.Errorf("Error fetching places: %v", err)
+        }
 
-		placeDetailsFromSearch,  err := service.SearchPlaces(categoryName, coordinates, radius,maxPages)
-		if err != nil {
-			return fmt.Errorf("Error fetching places: %v", err)
-		}
+        for _, place := range placeDetailsFromSearch {
+            placeID := place["PlaceID"].(string)
+            placeDetails, err := service.GetPlaceDetails(placeID)
+            if err != nil {
+                log.Printf("Failed to get details for place ID %s: %v", placeID, err)
+                continue
+            }
 
-		
-		for _, place := range placeDetailsFromSearch {
-			placeID := place["PlaceID"].(string)
-			placeDetails, err := service.GetPlaceDetails(placeID)
-			if err != nil {
-				log.Printf("Failed to get details for place ID %s: %v", placeID, err)
-				continue
-			}
+            placeDetails["Category"] = categoryName
+            placeDetails["City"] = cityName
+            placeDetails["Radius"] = radius
 
-			placeDetails["Category"] = categoryName
-			placeDetails["City"] = cityName
-			placeDetails["Radius"] = radius
+            err = publishLeadToRabbitMQ(ch, placeDetails)
+            if err != nil {
+                log.Printf("Failed to publish lead to RabbitMQ: %v", err)
+            }
 
-			err = publishLeadToRabbitMQ(ch, placeDetails)
-			if err != nil {
-				log.Printf("Failed to publish lead to RabbitMQ: %v", err)
-			}
-		}
+            totalLeadsExtracted++
+        }
 
-		
-		err = repository.UpdateSearchProgressPage(db, progressID, currentPage)
-		if err != nil {
-			return fmt.Errorf("Failed to update search progress: %v", err)
-		}
+        err = googleplaces.SaveProgressToDB(db, categoryName, coordinates, radius, currentPage, totalLeadsExtracted, "nextPageTokenExample")
+        if err != nil {
+            return fmt.Errorf("Failed to save progress: %v", err)
+        }
 
-		log.Printf("Search progress updated: page %d completed", currentPage)
+        log.Printf("Search progress updated: page %d completed, %d leads extracted", currentPage, totalLeadsExtracted)
+    }
 
-	
-	}
-
-	return nil
+    return nil
 }
+
 
 func getFirstZipCodeInRange(db *sql.DB, districtID int) (string, error) {
 	var startZip string

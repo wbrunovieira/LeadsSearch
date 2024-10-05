@@ -7,6 +7,7 @@ services:
         ports:
             - "5672:5672"
             - "15672:15672"
+        stop_grace_period: 60s
         healthcheck:
             test: ["CMD", "rabbitmqctl", "status"]
             interval: 60s
@@ -59,6 +60,7 @@ services:
             interval: 40s
             timeout: 15s
             retries: 7
+        stop_grace_period: 90s
         networks:
             - leads-network
 
@@ -142,6 +144,17 @@ services:
         depends_on:
             rabbitmq:
                 condition: service_healthy
+        networks:
+            - leads-network
+
+    validator-service:
+        build: ./validator-service
+        ports:
+            - "8090:8090"
+        environment:
+            - PORT=8090
+            
+            
         networks:
             - leads-network
 

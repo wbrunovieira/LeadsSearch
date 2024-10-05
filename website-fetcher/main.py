@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 from redis import Redis
 from urllib.parse import urljoin, urlparse
 from dotenv import load_dotenv
-from email_validator import validate_email, EmailNotValidError, caching_resolver
+
 
 import logging
 
@@ -545,10 +545,8 @@ def process_lead_data(lead_data, redis_client):
 
     website = lead_data.get("Website", "")
     print("website-fetcher process_lead_data website",website)
-    phone_is_whatsapp = lead_data.get("InternationalPhoneNumber", "")
-    print("website-fetcher process_lead_data phone_is_whatsApp",phone_is_whatsapp)
-    email_is_validated = lead_data.get("Email ", "")
-    print("website-fetcher process_lead_data email_is_validated",email_is_validated)
+ 
+    
     if website:
         if website.startswith("https://www.instagram.com"):
             logging.info("Instagram URL detectada, ignorando scraping.")
@@ -557,46 +555,6 @@ def process_lead_data(lead_data, redis_client):
         else:
             fetch_data_from_url(website)
             domain_whois(website)
-
-    if phone_is_whatsapp:
-        is_whatsapp(phone_is_whatsapp)
-
-    if email_is_validated:
-        is_mail_validate(email_is_validated)
-
-
-def is_whatsapp(phone_is_whatsapp):
-    formatted_phone = format_phone_number(phone_is_whatsapp)
-    url = os.getenv('URL_EVOLUTION')
-    headers = {
-        'Content-Type': 'application/json',
-        'apikey': os.getenv('EVOLUTION_WHATSAPP_API')  
-    }
-    payload = {
-        "numbers": [
-            formatted_phone
-        ]
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            for item in response_data:
-                exists = item.get("exists", False)
-                jid = item.get("jid", "")
-                name = item.get("name", "")
-                number = item.get("number", "")
-                print(f"Exists: {exists}, JID: {jid}, Name: {name}, Number: {number}")
-            return response_data
-
-        else:
-            print(f"Erro ao enviar mensagem: Código de status {response.status_code}, Resposta: {response.text}")
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"Erro ao fazer solicitação: {e}")
-        return False
 
 def format_phone_number(phone):
    
@@ -610,49 +568,6 @@ def format_phone_number(phone):
         
         return "55" + phone
         print('phone final',phone)
-
-def is_mail_validate(email):
-    """
-    Validates an email address using the email-validator library.
-    :param email: str - The email address to validate.
-    :return: dict - Returns a dictionary with validation results or error message.
-    """
-    
-    resolver = caching_resolver(timeout=10)
-
-    try:
-       
-        email_info = validate_email(
-            email,
-            check_deliverability=True,  
-            dns_resolver=resolver,
-            allow_smtputf8=True,  
-            allow_quoted_local=False,  
-            allow_display_name=True,  
-        )
-
-        
-        result = {
-            "normalized": email_info.normalized,
-            "ascii_email": email_info.ascii_email,
-            "local_part": email_info.local_part,
-            "domain": email_info.domain,
-            "smtputf8": email_info.smtputf8,
-            "is_valid": True,
-            "error": None,
-        }
-        print("email verification result",result)
-
-    except EmailNotValidError as e:
-       
-        result = {
-            "is_valid": False,
-            "error": str(e),
-        }
-
-    return result
-
-
 
 
 def domain_whois(domain):

@@ -1,6 +1,7 @@
 package googleplaces
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,8 +17,9 @@ type Service struct {
 }
 
 type TokenStore struct {
-	QueryTokens map[string]string `json:"query_tokens"`
+	QueryTokens map[string]map[string]interface{} `json:"query_tokens"`
 }
+
 
 
 
@@ -93,85 +95,122 @@ func (s *Service) GeocodeZip(zipCode string) (string, error) {
 func generateQueryKey(query string, location string, radius int) string {
 	return fmt.Sprintf("%s|%s|%d", query, location, radius)
 }
+func loadToken(queryKey string) (string, int, int, error) {
+    var tokenStore TokenStore
 
+    // Read the JSON file
+    file, err := os.ReadFile("next_page_tokens.json")
+    if err != nil {
+        if os.IsNotExist(err) {
+            // File does not exist, initialize empty TokenStore and create the file
+            tokenStore = TokenStore{QueryTokens: make(map[string]map[string]interface{})}
 
+            tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
+            if err != nil {
+                return "", 0, 0, fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
+            }
 
-func loadToken(queryKey string) (string, error) {
-	var tokenStore TokenStore
+            err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
+            if err != nil {
+                return "", 0, 0, fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
+            }
 
-	
-	file, err := os.ReadFile("next_page_tokens.json")
-	if err != nil {
-		if os.IsNotExist(err) {
-			
-			tokenStore = TokenStore{QueryTokens: make(map[string]string)}
-
-			tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
-			if err != nil {
-				return "", fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
-			}
-
-			err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
-			if err != nil {
-				return "", fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
-			}
-
-			return "", nil
-		}
-		return "", fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
-	}
-
-	
-	err = json.Unmarshal(file, &tokenStore)
-	if err != nil {
-		return "", fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
-	}
-
-	
-	if token, exists := tokenStore.QueryTokens[queryKey]; exists {
-		log.Printf("next_page_token carregado para a consulta %s: %s", queryKey, token)
-		return token, nil
-	}
-
-	return "", nil
-}
-
-func saveToken(queryKey string, token string) error {
-	var tokenStore TokenStore
-
-	
-	file, err := os.ReadFile("next_page_tokens.json")
-	if err == nil {
-		err = json.Unmarshal(file, &tokenStore)
-		if err != nil {
-			return fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
-		}
-	} else {
-		tokenStore = TokenStore{QueryTokens: make(map[string]string)}
-	}
-
-	if tokenStore.QueryTokens == nil {
-        log.Println("Mapa QueryTokens não está inicializado. Inicializando agora.")
-        tokenStore.QueryTokens = make(map[string]string)
+            return "", 0, 0, nil
+        }
+        return "", 0, 0, fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
     }
 
-	
-	tokenStore.QueryTokens[queryKey] = token
+    // If the file is empty, initialize the TokenStore to avoid JSON parsing errors
+    if len(file) == 0 {
+        tokenStore = TokenStore{QueryTokens: make(map[string]map[string]interface{})}
+    } else {
+        // Attempt to unmarshal the JSON into tokenStore
+        err = json.Unmarshal(file, &tokenStore)
+        if err != nil {
+            return "", 0, 0, fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
+        }
+    }
 
-	
-	tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
-	if err != nil {
-		return fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
-	}
+    // Check if the queryKey exists in tokenStore and validate its format
+    if queryData, exists := tokenStore.QueryTokens[queryKey]; exists {
+        // Ensure all required fields are available and properly cast
+        token, tokenOk := queryData["next_page_token"].(string)
+        pagesFetched, pagesOk := queryData["pages_fetched"].(float64) // JSON decodes numbers as float64
+        leadsExtracted, leadsOk := queryData["leads_extracted"].(float64)
 
-	err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
-	if err != nil {
-		return fmt.Errorf("erro ao salvar o arquivo JSON: %v", err)
-	}
+        if tokenOk && pagesOk && leadsOk {
+            return token, int(pagesFetched), int(leadsExtracted), nil
+        } else {
+            return "", 0, 0, fmt.Errorf("token or counts could not be cast properly: %v", queryData)
+        }
+    }
 
-	log.Println("next_page_token salvo com sucesso")
-	return nil
+    return "", 0, 0, nil
 }
+
+
+
+func saveToken(queryKey string, token string, pagesFetched int, leadsExtracted int) error {
+    var tokenStore TokenStore
+
+    // Lê o arquivo JSON existente
+    file, err := os.ReadFile("next_page_tokens.json")
+    if err == nil {
+        err = json.Unmarshal(file, &tokenStore)
+        if err != nil {
+            return fmt.Errorf("erro ao fazer parse do arquivo JSON: %v", err)
+        }
+    } else {
+        tokenStore = TokenStore{QueryTokens: make(map[string]map[string]interface{})}
+    }
+
+    if tokenStore.QueryTokens == nil {
+        log.Println("Mapa QueryTokens não está inicializado. Inicializando agora.")
+        tokenStore.QueryTokens = make(map[string]map[string]interface{})
+    }
+
+    // Atualiza ou adiciona o token, páginas e leads
+    tokenStore.QueryTokens[queryKey] = map[string]interface{}{
+        "next_page_token": token,
+        "pages_fetched":   pagesFetched,
+        "leads_extracted": leadsExtracted,
+    }
+
+    // Converte de volta para JSON e salva no arquivo
+    tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
+    if err != nil {
+        return fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
+    }
+
+    err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
+    if err != nil {
+        return fmt.Errorf("erro ao salvar o arquivo JSON: %v", err)
+    }
+
+    log.Println("next_page_token salvo com sucesso")
+    return nil
+}
+
+func updateSearchProgress(db *sql.DB, progressID int, pagesFetched int, leadsExtracted int, searchDone bool) error {
+    searchDoneValue := 0
+    if searchDone {
+        searchDoneValue = 1
+    }
+
+    query := `
+        UPDATE search_progress 
+        SET pages_fetched = ?, leads_extracted = ?, search_done = ? 
+        WHERE id = ?`
+    
+    _, err := db.Exec(query, pagesFetched, leadsExtracted, searchDoneValue, progressID)
+    if err != nil {
+        return fmt.Errorf("Failed to update search progress: %v", err)
+    }
+
+    log.Printf("Search progress updated: %d pages, %d leads extracted, done: %v", pagesFetched, leadsExtracted, searchDone)
+    return nil
+}
+
 
 
 
@@ -180,13 +219,13 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
     url := "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
     var allPlaces []map[string]interface{}
-	queryKey := generateQueryKey(query, location, radius)
-    pageToken, err := loadToken(queryKey) 
-	if err != nil {
-		return nil, fmt.Errorf("erro ao carregar next_page_token: %v", err)
-	}
-    pagesFetched := 0
-	totalResults := 0
+    queryKey := generateQueryKey(query, location, radius)
+    
+    // Carregar token, páginas e leads salvos
+    pageToken, pagesFetched, leadsExtracted, err := loadToken(queryKey)
+    if err != nil {
+        return nil, fmt.Errorf("erro ao carregar next_page_token: %v", err)
+    }
 
     for {
         params := map[string]string{
@@ -220,13 +259,14 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
                 return nil, fmt.Errorf("error parsing response: %v", err)
             }
 
-			if result.Status == "ZERO_RESULTS" {
+            if result.Status == "ZERO_RESULTS" {
                 log.Printf("Nenhum resultado encontrado para a consulta: %s", query)
                 break 
             } else if result.Status != "OK" {
                 return nil, fmt.Errorf("API error: %s, message: %s", result.Status, result.ErrorMessage)
             }
 
+            // Processar os resultados e salvar o progresso
             for _, place := range result.Results {
                 placeDetails := map[string]interface{}{
                     "Name":              place.Name,
@@ -241,39 +281,94 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
                     "Types":             place.Types,
                 }
                 allPlaces = append(allPlaces, placeDetails)
+                leadsExtracted++ // Incrementa o número de leads extraídos
             }
 
-			totalResults += len(result.Results)
             pagesFetched++
-			
-			log.Printf("Página %d obtida, total de resultados até agora: %d", pagesFetched, totalResults)
-            if result.NextPageToken != "" {
-				err := saveToken(queryKey, result.NextPageToken)
-				if err != nil {
-					log.Printf("Erro ao salvar o next_page_token: %v", err)
-				}
-			} else {
-				
-				saveToken(queryKey, "")
-				break
-			}
+            log.Printf("Página %d obtida, total de resultados até agora: %d", pagesFetched, leadsExtracted)
 
-            if pagesFetched >= maxPages {
-				break
-			}
 
+
+            // Salva o progresso no arquivo JSON e no banco de dados
+            saveToken(queryKey, result.NextPageToken, pagesFetched, leadsExtracted)
             
-            time.Sleep(2 * time.Second)
+
+
+
+            if result.NextPageToken == "" || pagesFetched >= maxPages {
+                break
+            }
 
             pageToken = result.NextPageToken
+            time.Sleep(2 * time.Second) // Aguarda 2 segundos antes de fazer a próxima requisição
         } else {
             return nil, fmt.Errorf("failed to get data: %v", resp.Status())
         }
     }
 
-	log.Printf("Total de resultados obtidos: %d", totalResults)
+    log.Printf("Total de resultados obtidos: %d", leadsExtracted)
     return allPlaces, nil
 }
+
+func SaveProgressToDB(db *sql.DB, query string, location string, radius int, pagesFetched int, leadsExtracted int, token string) error {
+    log.Println("saveProgressToDB: Entrando na função")
+    log.Printf("saveProgressToDB: query='%s', location='%s', radius=%d, pagesFetched=%d, leadsExtracted=%d, token='%s'\n",
+        query, location, radius, pagesFetched, leadsExtracted, token)
+
+    // Verifica se já existe um registro para a consulta
+    var exists bool
+    queryStr := `SELECT EXISTS(SELECT 1 FROM query_progress WHERE query=? AND location=? AND radius=?)`
+    err := db.QueryRow(queryStr, query, location, radius).Scan(&exists)
+    if err != nil {
+        log.Printf("Erro ao verificar a existência do registro: %v\n", err)
+        return err
+    }
+
+    if exists {
+        // Atualiza o progresso existente
+        log.Println("saveProgressToDB: Atualizando registro existente.")
+        updateStr := `UPDATE query_progress SET pages_fetched=?, leads_extracted=?, next_page_token=? WHERE query=? AND location=? AND radius=?`
+        result, err := db.Exec(updateStr, pagesFetched, leadsExtracted, token, query, location, radius)
+        if err != nil {
+            log.Printf("Erro ao atualizar o registro: %v\n", err)
+            return err
+        }
+        rowsAffected, err := result.RowsAffected()
+        if err != nil {
+            log.Printf("Erro ao obter linhas afetadas na atualização: %v\n", err)
+            return err
+        }
+        if rowsAffected == 0 {
+            log.Printf("Aviso: Nenhuma linha foi atualizada para query='%s', location='%s', radius=%d\n", query, location, radius)
+        } else {
+            log.Printf("Sucesso: %d linha(s) foram atualizadas para query='%s', location='%s', radius=%d\n", rowsAffected, query, location, radius)
+        }
+    } else {
+        // Insere um novo progresso
+        log.Println("saveProgressToDB: Inserindo novo registro.")
+        insertStr := `INSERT INTO query_progress (query, location, radius, pages_fetched, leads_extracted, next_page_token) VALUES (?, ?, ?, ?, ?, ?)`
+        result, err := db.Exec(insertStr, query, location, radius, pagesFetched, leadsExtracted, token)
+        if err != nil {
+            log.Printf("Erro ao inserir o registro: %v\n", err)
+            return err
+        }
+        rowsAffected, err := result.RowsAffected()
+        if err != nil {
+            log.Printf("Erro ao obter linhas afetadas na inserção: %v\n", err)
+            return err
+        }
+        if rowsAffected == 0 {
+            log.Printf("Aviso: Nenhuma linha foi inserida para query='%s', location='%s', radius=%d\n", query, location, radius)
+        } else {
+            log.Printf("Sucesso: %d linha(s) foram inseridas para query='%s', location='%s', radius=%d\n", rowsAffected, query, location, radius)
+        }
+    }
+
+    return nil
+}
+
+
+
 
 
 
@@ -362,10 +457,11 @@ func (s *Service) GetPlaceDetails(placeID string) (map[string]interface{}, error
         address := strings.Join(addressParts, ", ")
 
 		var description string
-        if result.Result.EditorialSummary.Overview != "" {
-            
-            description = fmt.Sprintf("(Google Places: %s)", result.Result.EditorialSummary.Overview)
-        }
+		if result.Result.EditorialSummary.Overview != "" {
+   	 	description = fmt.Sprintf("(Google Places: %s)", result.Result.EditorialSummary.Overview)
+		} else {
+			description = "(Google Places: No description available)"
+		}
 
 
 		log.Printf("Address components included: %v", addressParts)

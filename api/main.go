@@ -2,7 +2,9 @@ package main
 
 import (
 	"api/db"
+	"bytes"
 	"database/sql"
+	"io/ioutil"
 	"regexp"
 	"strconv"
 
@@ -89,6 +91,91 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 
     select {}
+}
+
+func hasWhatsApp(phone string) (bool, error) {
+	url := "http://validator-service:8090/check_whatsapp"
+	client := &http.Client{}
+
+	payload := fmt.Sprintf(`["%s"]`, phone)
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
+	if err != nil {
+		return false, err
+	}
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	for k, v := range headers {
+		request.Header.Set(k, v)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return false, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Erro na requisição para verificar WhatsApp: %s", response.Status)
+	}
+
+    body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return false, err
+	}
+
+	var result []map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return false, err
+	}
+
+	if len(result) > 0 && result[0]["has_whatsapp"].(bool) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func validateEmail(email string) (bool, error) {
+	url := "http://validator-service:8090/validate_email"
+	client := &http.Client{}
+
+	payload := fmt.Sprintf(`["%s"]`, email)
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
+	if err != nil {
+		return false, err
+	}
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	for k, v := range headers {
+		request.Header.Set(k, v)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return false, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Erro ao validar o email: %s", response.Status)
+	}
+    body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return false, err
+	}
+
+	var results []map[string]interface{}
+	if err := json.Unmarshal(body, &results); err != nil {
+		return false, err
+	}
+
+	if len(results) > 0 {
+		return results[0]["is_valid"].(bool), nil
+	}
+	
+	return false, fmt.Errorf("Resultado inválido para validação de email")
 }
 
 
@@ -395,6 +482,8 @@ func saveLeadToDatabase(data map[string]interface{}) error {
     if v, ok := data["Name"].(string); ok {
         lead.BusinessName = v
     }
+
+
 	if v, ok := data["FormattedAddress"].(string); ok {
 		lead.Address = v
 		if lead.Address == "" {
@@ -414,11 +503,31 @@ func saveLeadToDatabase(data map[string]interface{}) error {
 
 	if v, ok := data["Country"].(string); ok {
         lead.Country = v
+
+
+    }
+    if v, ok := data["InternationalPhoneNumber"].(string); ok {
+		hasWhatsapp, err := hasWhatsApp(v)
+		if err != nil {
+			log.Printf("Erro ao verificar WhatsApp: %v", err)
+		} else if hasWhatsapp {
+			lead.Whatsapp = v
+		}
+		lead.Phone = v
+	}
+
+    if v, ok := data["Email"].(string); ok {
+        isValidEmail, err := validateEmail(v)
+        if err != nil {
+            log.Printf("Erro ao validar email: %v", err)
+        } else if isValidEmail {
+            lead.Email = v
+        } else {
+            log.Printf("Email inválido, não será salvo: %s", v)
+        }
     }
 
-    if v, ok := data["InternationalPhoneNumber"].(string); ok {
-        lead.Phone = v
-    }
+  
     if v, ok := data["Website"].(string); ok {
         lead.Website = v
         
@@ -563,8 +672,7 @@ func saveCompanyData(data map[string]interface{}) (uuid.UUID, error) {
 
 
 func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]interface{}) error {
-    
-    lead, err := db.GetLeadByID(leadID)  
+    lead, err := db.GetLeadByID(leadID)
     if err != nil {
         return fmt.Errorf("Erro ao buscar Lead com ID %s: %v", leadID, err)
     }
@@ -573,27 +681,29 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
         return fmt.Errorf("Lead não encontrado com ID: %s", leadID)
     }
 
+    var newDescriptions []string
 
     if v, ok := cnpjDetails["razao_social"].(string); ok {
-        if lead.RegisteredName == "" {
-            lead.RegisteredName = v
-        } else if lead.RegisteredName != v {
-            
-            razaoSocialUpdate := fmt.Sprintf("Razão Social encontrada na Receita Federal: %s", v)
-    
-            
-            if strings.Contains(lead.Description, razaoSocialUpdate) {
-                log.Printf("Razão Social já está presente em lead.Description: %s", razaoSocialUpdate)
-            } else {
-                if lead.Description == "" {
-                    lead.Description = razaoSocialUpdate
-                } else {
-                    lead.Description = fmt.Sprintf("%s\n%s", lead.Description, razaoSocialUpdate)
-                }
-            }
+        razaoSocialUpdate := fmt.Sprintf("Razão Social encontrada na Receita Federal: %s", v)
+        newDescriptions = append(newDescriptions, razaoSocialUpdate)
+    }
+
+    if v, ok := cnpjDetails["atividade_principal"].(map[string]interface{}); ok {
+        if descricao, ok := v["descricao"].(string); ok {
+            newDescriptions = append(newDescriptions, fmt.Sprintf("Atividade Principal: %s", descricao))
         }
     }
-    
+
+   
+
+    if len(newDescriptions) > 0 {
+        newInfo := strings.Join(newDescriptions, "\n")
+        if lead.Description == "" {
+            lead.Description = newInfo
+        } else {
+            lead.Description = fmt.Sprintf("%s\n%s", lead.Description, newInfo)
+        }
+    }
 
     if v, ok := cnpjDetails["atividade_principal"].(map[string]interface{}); ok {
         if descricao, ok := v["descricao"].(string); ok {
@@ -633,12 +743,15 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
     }
 
     if v, ok := cnpjDetails["email"].(string); ok {
-        if lead.Email != "" {
-            
-            lead.Email = fmt.Sprintf("%s; %s", lead.Email, v)
-        } else {
-            
-            lead.Email = v
+        isValidEmail, err := validateEmail(v)
+        if err != nil {
+            log.Printf("Erro ao validar email: %v", err)
+        } else if isValidEmail {
+            if lead.Email != "" {
+                lead.Email = fmt.Sprintf("%s; %s", lead.Email, v)
+            } else {
+                lead.Email = v
+            }
         }
     }
 
@@ -659,164 +772,127 @@ func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]inte
             
             lead.Owner = strings.Join(ownerDetails, ", ")
         }
-    }
 
-   
-    normalizePhone := func(phone string) string {
-        re := regexp.MustCompile(`[\s\-\(\)]`) 
-        return re.ReplaceAllString(phone, "")
-    }
-
-    
-    formatPhone := func(phone string) string {
-        phone = normalizePhone(phone)
-        if len(phone) == 11 { 
-            return fmt.Sprintf("+55 %s %s-%s", phone[:2], phone[2:6], phone[6:])
+        normalizePhone := func(phone string) string {
+            re := regexp.MustCompile(`[\s\-\(\)]`) 
+            return re.ReplaceAllString(phone, "")
         }
-        return phone 
-    }
-
-   
-    var newPhones []string
-
     
-    if telefone1, ok := cnpjDetails["telefone1"].(string); ok && telefone1 != "" {
-        newPhones = append(newPhones, formatPhone(telefone1))
-    }
-
+        
+        formatPhone := func(phone string) string {
+            phone = normalizePhone(phone)
+            if len(phone) == 11 { 
+                return fmt.Sprintf("+55 %s %s-%s", phone[:2], phone[2:6], phone[6:])
+            }
+            return phone 
+        }
     
-    if telefone2, ok := cnpjDetails["telefone2"].(string); ok && telefone2 != "" {
-        newPhones = append(newPhones, formatPhone(telefone2))
-    }
-
-    
-    if lead.Phone != "" {
-        existingPhones := strings.Split(lead.Phone, ", ") 
-        normalizedExistingPhones := make(map[string]bool)
-
        
-        for _, existingPhone := range existingPhones {
-            normalizedExistingPhones[normalizePhone(existingPhone)] = true
-        }
+        var newPhones []string
 
-        
-        for _, newPhone := range newPhones {
-            if !normalizedExistingPhones[normalizePhone(newPhone)] {
-                existingPhones = append(existingPhones, newPhone)
-            }
-        }
-
-        
-        lead.Phone = strings.Join(existingPhones, ", ")
-    } else {
-        
-        lead.Phone = strings.Join(newPhones, ", ")
-    }
-
-
-  
-
-    if v, ok := cnpjDetails["porte"].(string); ok {
-        lead.CompanySize = v
-    }
-
-    var additionalInfo []string
-
-    if mei, ok := cnpjDetails["mei"].(map[string]interface{}); ok {
-        if optanteMei, ok := mei["optante_mei"].(string); ok && optanteMei != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Optante MEI: %s", optanteMei))
-        }
-        if dataOpcao, ok := mei["data_opcao"].(string); ok && dataOpcao != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção MEI: %s", dataOpcao))
-        }
-        if dataExclusao, ok := mei["data_exclusao"].(string); ok && dataExclusao != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão MEI: %s", dataExclusao))
-        }
-    }
-
-   
-    if naturezaJuridica, ok := cnpjDetails["natureza_juridica"].(string); ok && naturezaJuridica != "" {
-        additionalInfo = append(additionalInfo, fmt.Sprintf("Natureza Jurídica: %s", naturezaJuridica))
-    }
-
-    
-    if simples, ok := cnpjDetails["simples"].(map[string]interface{}); ok {
-        if optanteSimples, ok := simples["optante_simples"].(string); ok && optanteSimples != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Optante Simples Nacional: %s", optanteSimples))
-        }
-        if dataOpcaoSimples, ok := simples["data_opcao"].(string); ok && dataOpcaoSimples != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção Simples: %s", dataOpcaoSimples))
-        }
-        if dataExclusaoSimples, ok := simples["data_exclusao"].(string); ok && dataExclusaoSimples != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão Simples: %s", dataExclusaoSimples))
-        }
-    }
-
-   
-    if situacao, ok := cnpjDetails["situacao"].(map[string]interface{}); ok {
-        if situacaoNome, ok := situacao["nome"].(string); ok && situacaoNome != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Situação: %s", situacaoNome))
-        }
-        if situacaoData, ok := situacao["data"].(string); ok && situacaoData != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Data da Situação: %s", situacaoData))
-        }
-        if situacaoMotivo, ok := situacao["motivo"].(string); ok && situacaoMotivo != "" {
-            additionalInfo = append(additionalInfo, fmt.Sprintf("Motivo da Situação: %s", situacaoMotivo))
-        }
-    }
-
-    
-    if len(additionalInfo) > 0 {
-        additionalInfoStr := fmt.Sprintf("Conteúdos adicionais encontrados na Receita Federal: %s", strings.Join(additionalInfo, ", "))
-    
-        
-        descriptionParts := strings.Split(lead.Description, "\n")
-        uniqueInfo := true
-    
-        
-        for _, part := range descriptionParts {
-            if part == additionalInfoStr {
-                uniqueInfo = false
-                break
+        if telefone1, ok := cnpjDetails["telefone1"].(string); ok && telefone1 != "" {
+            hasWhatsapp, _ := hasWhatsApp(telefone1)
+            formattedPhone := formatPhone(telefone1)
+            newPhones = append(newPhones, formattedPhone)
+            if hasWhatsapp {
+                lead.Whatsapp += formattedPhone + ", "
             }
         }
     
         
-        if uniqueInfo {
-            if lead.Description == "" {
-                lead.Description = additionalInfoStr
+        if telefone2, ok := cnpjDetails["telefone2"].(string); ok && telefone2 != "" {
+            hasWhatsapp, _ := hasWhatsApp(telefone2)
+            formattedPhone := formatPhone(telefone2)
+            newPhones = append(newPhones, formattedPhone)
+            if hasWhatsapp {
+                lead.Whatsapp += formattedPhone + ", "
+            }
+        }
+
+        if lead.Phone != "" {
+            existingPhones := strings.Split(lead.Phone, ", ") 
+            normalizedExistingPhones := make(map[string]bool)
+    
+           
+            for _, existingPhone := range existingPhones {
+                normalizedExistingPhones[normalizePhone(existingPhone)] = true
+            }
+    
+            
+            for _, newPhone := range newPhones {
+                if !normalizedExistingPhones[normalizePhone(newPhone)] {
+                    existingPhones = append(existingPhones, newPhone)
+                }
+            }
+    
+            
+            lead.Phone = strings.Join(existingPhones, ", ")
+
             } else {
-                lead.Description = fmt.Sprintf("%s\n%s", lead.Description, additionalInfoStr)
+        
+                lead.Phone = strings.Join(newPhones, ", ")
             }
-        }
-    }
-    
-    
 
+            if v, ok := cnpjDetails["porte"].(string); ok {
+                lead.CompanySize = v
+            }
+
+            var additionalInfo []string
+
+            if mei, ok := cnpjDetails["mei"].(map[string]interface{}); ok {
+                if optanteMei, ok := mei["optante_mei"].(string); ok && optanteMei != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Optante MEI: %s", optanteMei))
+                }
+                if dataOpcao, ok := mei["data_opcao"].(string); ok && dataOpcao != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção MEI: %s", dataOpcao))
+                }
+                if dataExclusao, ok := mei["data_exclusao"].(string); ok && dataExclusao != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão MEI: %s", dataExclusao))
+                }
+            }
+
+            if naturezaJuridica, ok := cnpjDetails["natureza_juridica"].(string); ok && naturezaJuridica != "" {
+                additionalInfo = append(additionalInfo, fmt.Sprintf("Natureza Jurídica: %s", naturezaJuridica))
+            }
+        
+            
+            if simples, ok := cnpjDetails["simples"].(map[string]interface{}); ok {
+                if optanteSimples, ok := simples["optante_simples"].(string); ok && optanteSimples != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Optante Simples Nacional: %s", optanteSimples))
+                }
+                if dataOpcaoSimples, ok := simples["data_opcao"].(string); ok && dataOpcaoSimples != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Opção Simples: %s", dataOpcaoSimples))
+                }
+                if dataExclusaoSimples, ok := simples["data_exclusao"].(string); ok && dataExclusaoSimples != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Data de Exclusão Simples: %s", dataExclusaoSimples))
+                }
+            }
+
+            if situacao, ok := cnpjDetails["situacao"].(map[string]interface{}); ok {
+                if situacaoNome, ok := situacao["nome"].(string); ok && situacaoNome != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Situação: %s", situacaoNome))
+                }
+                if situacaoData, ok := situacao["data"].(string); ok && situacaoData != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Data da Situação: %s", situacaoData))
+                }
+                if situacaoMotivo, ok := situacao["motivo"].(string); ok && situacaoMotivo != "" {
+                    additionalInfo = append(additionalInfo, fmt.Sprintf("Motivo da Situação: %s", situacaoMotivo))
+                }
+            }
+
+    }
+
+    
     err = db.UpdateLead(lead)
     if err != nil {
         log.Printf("Erro ao atualizar o lead: %v", err)
         return fmt.Errorf("Erro ao atualizar o lead: %v", err)
     }
 
-    leadStep := db.LeadStep{
-        ID:        uuid.New(),
-        LeadID:    lead.ID,
-        Step:      "Empresa Atualizada",
-        Status:    "Sucesso",
-        Timestamp: time.Now(),
-        Details:   fmt.Sprintf("Empresa %s com CNPJ %s atualizada", lead.RegisteredName, lead.CompanyRegistrationID),
-    }
-
-    err = db.CreateLeadStep(&leadStep)
-    if err != nil {
-        return fmt.Errorf("Erro ao criar o LeadStep: %v", err)
-    }
-
-
     log.Printf("Lead atualizado com sucesso para ID: %s", leadID)
     return nil
 }
+
 
 func isTemporaryError(err error) bool {
     for _, tempErr := range temporaryErrors {

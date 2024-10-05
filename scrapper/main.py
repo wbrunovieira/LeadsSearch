@@ -9,7 +9,7 @@ import http.client
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from email_validator import validate_email, EmailNotValidError, caching_resolver
+
 
 load_dotenv()
 
@@ -263,45 +263,6 @@ async def parse_company_data(html_data, google_id, search_city):
         return []    
 
 
-def is_mail_validate(email):
-    """
-    Validates an email address using the email-validator library.
-    :param email: str - The email address to validate.
-    :return: dict - Returns a dictionary with validation results or error message.
-    """
-    resolver = caching_resolver(timeout=10)
-
-    try:
-        # Validate email address
-        email_info = validate_email(
-            email,
-            check_deliverability=True,  # Check if the domain has an MX record
-            dns_resolver=resolver,
-            allow_smtputf8=True,  # Allow utf8 emails
-            allow_quoted_local=False,  # Do not allow quoted parts in the local part
-            allow_display_name=True,  # Allow display names
-        )
-
-        # Return successful validation result
-        result = {
-            "normalized": email_info.normalized,
-            "ascii_email": email_info.ascii_email,
-            "local_part": email_info.local_part,
-            "domain": email_info.domain,
-            "smtputf8": email_info.smtputf8,
-            "is_valid": True,
-            "error": None,
-        }
-        print("email verification result", result)
-    except EmailNotValidError as e:
-        # Return error message if email is not valid
-        result = {
-            "is_valid": False,
-            "error": str(e),
-        }
-
-    return result
-
 async def handle_lead_data(lead_data):
     """Processa os dados de lead e busca as informações da empresa."""
     name = lead_data.get('Name')
@@ -336,19 +297,7 @@ async def handle_lead_data(lead_data):
                         print(f"[LOG] Consultando API de CNPJ para {company['company_name']} com CNPJ: {cnpj}")
                         cnpj_details = await fetch_cnpj_data(cnpj)
 
-                        if cnpj_details:
-                            
-                            email = cnpj_details.get('email')
-                            if email:
-                                validation_result = is_mail_validate(email)
-                                if validation_result['is_valid']:
-                                    cnpj_details['validated_email'] = validation_result
-                                    print(f"[LOG] Email validado com sucesso: {email}")
-                                else:
-                                    print(f"[LOG] Email inválido: {email} - Erro: {validation_result['error']}")
-                                    cnpj_details['validated_email'] = None
-                            else:
-                                print(f"[LOG] Nenhum email encontrado para {company['company_name']}")
+                 
 
                         if cnpj_details not in combined_data['cnpj_details']:
                             company['cnpj_details'] = cnpj_details
