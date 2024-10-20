@@ -28,6 +28,8 @@ func main() {
 
     log.Println("Starting the service...")
 
+    
+
 	conn, ch, err := connectToRabbitMQ()
 	if err != nil {
 		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
@@ -102,7 +104,7 @@ func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
     }
 
     
-    return nil, nil, fmt.Errorf("failed to connect to RabbitMQ after retries: %v", err)
+    return conn, ch, nil
 }
 
 

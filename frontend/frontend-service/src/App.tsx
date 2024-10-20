@@ -1,35 +1,32 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import "./App.css";
+import LogMonitor from "./components/LogMonitor";
+import ServiceCard from "./components/ServiceCard";
 
 function App() {
-  const [count, setCount] = useState(0)
+    return (
+        <>
+          <div className="min-h-screen bg-gradient-to-r from-[#350545] to-[#792990] flex flex-col items-center justify-start p-6">
+            <header className="text-center mb-12">
+                <h1 className="text-4xl font-bold text-[#ffb947] mb-4">Leads Search Dashboard</h1>
+                <p className="text-[#ffb947] text-lg">Monitoramento em tempo real dos serviços</p>
+            </header>
 
-  return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl">
+                
+                <ServiceCard serviceName="Lead Search" />
+                <ServiceCard serviceName="API Gateway" />
+                <ServiceCard serviceName="Scrapper" />
+                <ServiceCard serviceName="Validator" />
+                <ServiceCard serviceName="Website Fetcher" />
+                <ServiceCard serviceName="Link Fetcher" />
+            </div>
+
+            <div className="mt-12 w-full max-w-6xl">
+                <LogMonitor />
+            </div>
+        </div>
+        </>
+    );
 }
 
-export default App
+export default App;

@@ -153,8 +153,7 @@ services:
             - "8090:8090"
         environment:
             - PORT=8090
-            
-            
+
         networks:
             - leads-network
 
@@ -211,16 +210,17 @@ services:
         networks:
             - leads-network
 
-
     frontend:
-        build: ./frontend
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
         ports:
-         - "5173:5173" 
+            - "5173:5173"
         volumes:
-        - ./frontend:/app/frontend-service
+            - ./frontend:/app/frontend
+            - /app/frontend/node_modules
         networks:
-        - leads-network
-
+            - leads-network
 
 networks:
     leads-network:
