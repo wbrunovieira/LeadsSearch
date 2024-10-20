@@ -221,7 +221,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
     var allPlaces []map[string]interface{}
     queryKey := generateQueryKey(query, location, radius)
     
-    // Carregar token, páginas e leads salvos
+    
     pageToken, pagesFetched, leadsExtracted, err := loadToken(queryKey)
     if err != nil {
         return nil, fmt.Errorf("erro ao carregar next_page_token: %v", err)
@@ -266,7 +266,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
                 return nil, fmt.Errorf("API error: %s, message: %s", result.Status, result.ErrorMessage)
             }
 
-            // Processar os resultados e salvar o progresso
+            
             for _, place := range result.Results {
                 placeDetails := map[string]interface{}{
                     "Name":              place.Name,
@@ -281,7 +281,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
                     "Types":             place.Types,
                 }
                 allPlaces = append(allPlaces, placeDetails)
-                leadsExtracted++ // Incrementa o número de leads extraídos
+                leadsExtracted++ 
             }
 
             pagesFetched++
@@ -289,7 +289,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
 
 
 
-            // Salva o progresso no arquivo JSON e no banco de dados
+            
             saveToken(queryKey, result.NextPageToken, pagesFetched, leadsExtracted)
             
 
@@ -300,7 +300,7 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
             }
 
             pageToken = result.NextPageToken
-            time.Sleep(2 * time.Second) // Aguarda 2 segundos antes de fazer a próxima requisição
+            time.Sleep(2 * time.Second) 
         } else {
             return nil, fmt.Errorf("failed to get data: %v", resp.Status())
         }

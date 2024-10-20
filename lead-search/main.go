@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"log"
 	"net/http"
@@ -147,7 +148,8 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 
 
 func setupDatabase() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", "./geo.db")
+    dbPath := "/usr/src/app/data/geo.db"
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +223,9 @@ func setupDatabase() (*sql.DB, error) {
 			city_id INTEGER,
 			district_id INTEGER,
 			zipcode_id INTEGER,
+            pages_fetched INTEGER DEFAULT 0,      
+            leads_extracted INTEGER DEFAULT 0,
+            search_done INTEGER DEFAULT 0, 
 			pages_fetched INTEGER DEFAULT 0,
 			leads_extracted INTEGER DEFAULT 0,
 			search_done INTEGER DEFAULT 0, -- campo para indicar se a pesquisa foi concluída
@@ -236,10 +241,18 @@ func setupDatabase() (*sql.DB, error) {
 		);
 	`
 
-	_, err = db.Exec(createTablesSQL)
-	if err != nil {
-		return nil, err
-	}
+    statements := strings.Split(createTablesSQL, ";")
+    for _, stmt := range statements {
+        
+        stmt = strings.TrimSpace(stmt)
+        if stmt == "" {
+            continue
+        }
+        _, err = db.Exec(stmt)
+        if err != nil {
+            return nil, fmt.Errorf("failed to execute statement '%s': %v", stmt, err)
+        }
+    }
 
 	log.Println("Database setup completed")
 	return db, nil
