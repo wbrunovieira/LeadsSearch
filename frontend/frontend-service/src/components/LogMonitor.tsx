@@ -1,35 +1,27 @@
 import React, { useEffect, useState } from "react";
 
-import { Database } from "sql.js";
-import { initDatabase } from "../database/sqliteService";
-import { captureDockerLogs } from "../logs/logService";
-
 const LogMonitor: React.FC = () => {
     const [logs, setLogs] = useState<string[]>([]);
-    const [db, setDb] = useState<Database | null>(null);
 
     useEffect(() => {
         const initialize = async () => {
-            const dbInstance = await initDatabase();
-            setDb(dbInstance);
-            captureDockerLogs(dbInstance);
+            fetchLogs();
         };
         initialize();
     }, []);
 
-    useEffect(() => {
-        if (!db) return;
-
-        setLogs((prevLogs) => [
-            ...prevLogs,
-            "Exemplo de log 1",
-            "Exemplo de log 2",
-        ]);
-    }, [db]);
+    const fetchLogs = async () => {
+        try {
+            const response = await fetch("/api/logs");
+            const data = await response.json();
+            setLogs(data.map((log: any) => `${log[1]}: ${log[2]}`));
+        } catch (error) {
+            console.error("Erro ao buscar logs:", error);
+        }
+    };
 
     return (
-        <div className="bg-[#350545] p-6 rounded-xl shadow-md text-white">
-            <h2 className="text-2xl font-bold mb-4">Logs Recentes</h2>{" "}
+        <div className="bg-[#350545] p-6 rounded-xl shadow-md text-white-100">
             <h2 className="text-2xl font-bold mb-4">Logs Recentes</h2>
             <div
                 style={{

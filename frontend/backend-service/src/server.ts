@@ -1,19 +1,36 @@
 import Fastify from "fastify";
+import { initDatabase, insertLog } from './database/sqliteService';
+import { captureDockerLogs } from "./logs/logService";
+import { Database } from "sql.js";
 
-const fastify = Fastify({ logger: true });
+const server = Fastify({ logger: true });
+let db: Database | null = null;
 
-fastify.get("/", async (request, reply) => {
-    return { hello: "world" };
-});
 
-const start = async () => {
+
+server.get('/api/logs', async (request, reply) => {
+
+    if (!db) {
+        reply.status(500).send({ error: "Banco de dados não inicializado" });
+        return;
+    }
+
+    const logs = db.exec("SELECT * FROM logs ORDER BY id DESC") || [];
+    reply.send(logs[0]?.values || []);
+  });
+
+const startServer = async () => {
     try {
-        await fastify.listen({ port: 3333 });
+        db = await initDatabase();
+
+        captureDockerLogs(db);
+
+        await server.listen({ port: 3333 });
         console.log("Servidor rodando na porta 3333");
     } catch (err) {
-        fastify.log.error(err);
+        server.log.error(err);
         process.exit(1);
     }
 };
 
-start();
+startServer();

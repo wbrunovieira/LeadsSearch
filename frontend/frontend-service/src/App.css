@@ -1,13 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem;
+    text-align: center;
 }
 
-
 body {
-  margin: 0;
-  font-family: 'Inter', sans-serif;
-  background-color: #350545; 
+    margin: 0;
+    font-family: "Inter", sans-serif;
 }
