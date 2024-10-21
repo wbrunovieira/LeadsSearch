@@ -51,6 +51,11 @@ func main() {
     }
     defer closeRabbitMQ()
 
+    rabbitChannel, err := setupChannel(conn)
+    if err != nil {
+        log.Fatalf("Erro ao configurar o canal: %v", err)
+    }
+
     log.Println("Conectando ao Redis...")
     if err := ConnectToRedis(); err != nil {
         log.Fatalf("Erro ao conectar ao Redis: %v", err)
@@ -71,10 +76,10 @@ func main() {
     }
 
     log.Println("Starting to consume leads from RabbitMQ...")
- 	go consumeLeadsFromRabbitMQ(channel)
+ 	go consumeLeadsFromRabbitMQ(rabbitChannel)
 
     log.Println("Starting to consume companies from RabbitMQ...")
-    go consumeCompaniesFromRabbitMQ(channel)
+    go consumeCompaniesFromRabbitMQ(rabbitChannel)
 	
 	http.HandleFunc("/leads", leadHandler)
     
@@ -185,11 +190,6 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
     rabbitmqHost := os.Getenv("RABBITMQ_HOST")
     rabbitmqPort := os.Getenv("RABBITMQ_PORT")
 
-    if rabbitConn != nil {
-        log.Println("RabbitMQ já está conectado")
-        return rabbitConn, nil
-    }
-
     if rabbitmqHost == "" || rabbitmqPort == "" {
         return nil, fmt.Errorf("RABBITMQ_HOST and RABBITMQ_PORT must be set")
     }
@@ -205,16 +205,15 @@ func connectToRabbitMQ() (*amqp.Connection, error) {
             log.Println("Conexão com RabbitMQ bem-sucedida")
             break
         }
-        log.Printf("Failed to connect to RabbitMQ at %s:%s, retrying in 10 seconds... (%d/5)", rabbitmqHost, rabbitmqPort, i+1)
+        log.Printf("Falha ao conectar ao RabbitMQ, tentando novamente em 10 segundos... (%d/5)", i+1)
         time.Sleep(10 * time.Second)
     }
 
     if err != nil {
-        return nil, fmt.Errorf("failed to connect to RabbitMQ after 5 retries: %v", err)
+        return nil, fmt.Errorf("Falha ao conectar ao RabbitMQ após 5 tentativas: %v", err)
     }
 
     rabbitConn = conn
-
     return conn, nil
 }
 
@@ -259,13 +258,20 @@ func SaveLeadToRedis(googleId string, leadId uuid.UUID) error {
 func sendConfirmationToScrapper(googleId string) error {
     log.Printf("Iniciando envio de confirmação para o scrapper com Google ID: %s", googleId)
 
-    // Reutiliza a conexão e o canal
-    _, ch, err := connectToRabbitMQ()
+    
+    conn, err := connectToRabbitMQ()
     if err != nil {
         return fmt.Errorf("Erro ao conectar ao RabbitMQ: %v", err)
     }
+    defer conn.Close()
 
-    // Mensagem de confirmação
+    ch, err := setupChannel(conn)
+    if err != nil {
+        return fmt.Errorf("Erro ao configurar o canal: %v", err)
+    }
+    defer ch.Close()
+
+   
     message := map[string]string{
         "googleId": googleId,
         "status":   "ok",
@@ -960,71 +966,26 @@ func leadHandler(w http.ResponseWriter, r *http.Request) {
 
 
 func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
-    ch, err := conn.Channel()
-    if err != nil {
-        log.Fatalf("Failed to open a channel: %v", err)
-    }
-    defer ch.Close()
-
-    err = ch.Qos(10, 0, false)
-    if err != nil {
-        log.Fatalf("Failed to set QoS: %v", err)
-    }
-	exchangeName := "leads_exchange"
-    queueName := "leads_queue"
-
-    args := amqp.Table{
-		"x-dead-letter-exchange": "dlx_exchange", 
-		"x-message-ttl":          60000,          
-	}
-
-    
-
-	err := ch.ExchangeDeclare(
-        exchangeName, 
-        "fanout",     
-        true,         
-        false,        
-        false,        
-        false,        
-        nil,          
-    )
-    if err != nil {
-        log.Fatalf("Failed to declare exchange: %v", err)
-    }
-
-  q, err := ch.QueueDeclare(
-        queueName,
-        true, // Durable
+    q, err := ch.QueueDeclare(
+        "leads_queue",
+        true,  // Durable
         false, // Delete when unused
         false, // Exclusive
         false, // No-wait
-        args,   // Arguments
+        nil,   // Arguments
     )
     if err != nil {
-        log.Fatalf("Failed to register a consumer: %v", err)
+        log.Fatalf("Failed to declare queue: %v", err)
     }
 
-	err = ch.QueueBind(
-        q.Name,        
-        "",            
-        exchangeName,  
-        false,
-        nil,
-    )
-    if err != nil {
-        log.Fatalf("Failed to bind queue to exchange: %v", err)
-    }
-
-
- msgs, err := ch.Consume(
+    msgs, err := ch.Consume(
         q.Name,
         "",
         false,  // Auto-acknowledge
-        false, // Exclusive
-        false, // No-local
-        false, // No-wait
-        nil,   // Arguments
+        false,  // Exclusive
+        false,  // No-local
+        false,  // No-wait
+        nil,    // Arguments
     )
     if err != nil {
         log.Fatalf("Failed to register a consumer: %v", err)
@@ -1032,48 +993,29 @@ func consumeLeadsFromRabbitMQ(ch *amqp.Channel) {
 
     go func() {
         for d := range msgs {
-                        
-            log.Printf("Mensagem recebida do RabbitMQ pelo consumeLeadsFromRabbitMQ: %s", string(d.Body))
-            
+            log.Printf("Mensagem recebida: %s", d.Body)
+
             var leadData map[string]interface{}
+            if err := json.Unmarshal(d.Body, &leadData); err != nil {
+                log.Printf("Erro ao decodificar JSON: %v", err)
+                d.Nack(false, true)
+                continue
+            }
 
-            if json.Valid(d.Body) {
-				err := json.Unmarshal(d.Body, &leadData)
-                if err != nil {
-                    log.Printf("Erro ao decodificar JSON: %v", err)
-                    d.Nack(false, true) 
-                    continue
-                }
+            if err := saveLeadToDatabase(leadData); err != nil {
+                log.Printf("Erro ao processar lead: %v", err)
+                d.Nack(false, false)
+                continue
+            }
 
-                log.Printf("Processando lead: %v", leadData)
-                err = saveLeadToDatabase(leadData)
-                if err != nil {
-                    log.Printf("Erro ao processar lead: %v", err)                   
-                    
-                    if isTemporaryError(err) { 
-                        d.Nack(false, true)  
-                        log.Printf("Erro temporário. Mensagem reenfileirada para nova tentativa.saveLeadToDatabase")
-                    } else {
-                        d.Nack(false, false) 
-                        log.Printf("Erro irrecuperável. Mensagem descartada.saveLeadToDatabase")
-                    }
-                    continue
-                }
-
-                err = d.Ack(false)
-                if err != nil {
-                    log.Printf("Erro ao enviar ACK: %v", err)
-                }  
-				
-			} 
-
-
+            d.Ack(false)
         }
     }()
 
-    log.Println("Consuming leads from RabbitMQ...")
-    select {} // Block forever
+    log.Println("Consumindo leads do RabbitMQ...")
+    select {} // Block para manter o consumer ativo
 }
+
 
 
 
@@ -1092,16 +1034,15 @@ func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
         return nil, fmt.Errorf("Erro ao abrir canal: %v", err)
     }
 
-    
     exchangeName := "scrapper_exchange"
     err = channel.ExchangeDeclare(
         exchangeName,
-        "fanout",     
-        true,         
-        false,        
-        false,        
-        false,        
-        nil,          
+        "fanout",     // Tipo de exchange
+        true,         // Durable
+        false,        // Auto-delete
+        false,        // Internal
+        false,        // No-wait
+        nil,          // Arguments
     )
     if err != nil {
         return nil, fmt.Errorf("Erro ao declarar exchange: %v", err)
@@ -1110,5 +1051,6 @@ func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
     log.Printf("Exchange %s declarada com sucesso", exchangeName)
     return channel, nil
 }
+
 
 

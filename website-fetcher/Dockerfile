@@ -1,38 +1,24 @@
-FROM python:alpine3.20
+FROM python:3.11
 
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-RUN apk update && apk add --no-cache \
-    wget \
-    curl \
-    gnupg \
-    git \ 
-    gcc \
-    musl-dev \
+# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
-    libxslt-dev \
-    libffi-dev \
-    openssl-dev \
-    zlib-dev \
-    build-base 
+    libxslt1-dev \
+    zlib1g-dev \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
+
+# Upgrade pip
 RUN pip install --upgrade pip
-RUN pip install --only-binary :all: pika beautifulsoup4 python-dotenv requests lxml && \
-    pip install aiohttp==3.7.4
 
-
-
-
+# Copy requirements
 COPY requirements.txt .
 
-
+# Install Python dependencies without --only-binary, except for lxml
 RUN pip install --no-cache-dir -r requirements.txt
 
-WORKDIR /app
 
-COPY . .
-
-
-CMD ["python", "main.py"]
+# Clean up unnecessary packages
+RUN apt-get purge -y --auto-remove gcc libxml2-dev libxslt1-dev zlib1g-dev
