@@ -5,7 +5,8 @@
     "main": "index.js",
     "scripts": {
         "build": "tsc --build",
-        "dev": "ts-node --esm dist/server.js"
+        "dev": "ts-node --esm dist/server.js",
+        "dev-backend": "npm run dev" 
     },
     "keywords": [],
     "author": "",

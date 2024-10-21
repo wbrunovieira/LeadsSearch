@@ -197,6 +197,7 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+        command: ["wait-for-it.sh", "db", "5432", "--", "python", "main.py"]
         networks:
             - leads-network
 
@@ -215,10 +216,11 @@ services:
             context: ./frontend
             dockerfile: Dockerfile
         ports:
+            - "3333:3333"
             - "5173:5173"
         volumes:
-            - ./frontend:/app/frontend
-            - /app/frontend/node_modules
+            - ./frontend/backend-service:/app/backend-service  
+            - ./frontend/frontend-service:/app/frontend-service
         networks:
             - leads-network
 

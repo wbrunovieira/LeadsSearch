@@ -13,6 +13,10 @@ FROM debian:bullseye-slim
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    netcat \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 COPY .env /app/.env
 COPY wait-for-it.sh /usr/local/bin/wait-for-it.sh
