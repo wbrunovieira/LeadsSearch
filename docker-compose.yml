@@ -219,8 +219,10 @@ services:
             - "3333:3333"
             - "5173:5173"
         volumes:
-            - ./frontend/backend-service:/app/backend-service  
+            - ./frontend/backend-service:/app/backend-service
             - ./frontend/frontend-service:/app/frontend-service
+            - /app/frontend-service/node_modules
+            - /app/backend-service/node_modules
         networks:
             - leads-network
 

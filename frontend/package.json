@@ -1,0 +1,10 @@
+{
+    "name": "leads-search",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+      "start-backend": "cd backend-service && npm run dev-backend",
+      "start-frontend": "cd frontend-service && npm run dev-frontend"
+    }
+  }
+  
