@@ -4,8 +4,9 @@ import { insertLog } from '../database/sqliteService';
 
 
 export const captureDockerLogs = (db: Database) => {
-  const command = 'docker-compose logs -f leads_search-lead-search-1';
+  const command = 'docker-compose logs -f lead-search';
   const childProcess = exec(command);
+  console.log('captureDockerLogs command',command)
 
   childProcess.stdout?.on('data', (data: string) => {
     console.log(`Log capturado: ${data}`);

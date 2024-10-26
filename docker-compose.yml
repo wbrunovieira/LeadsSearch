@@ -223,6 +223,7 @@ services:
         volumes:
             - ./frontend/backend-service:/app/backend-service
             - ./frontend/frontend-service:/app/frontend-service
+            - ./data:/app/data
             - /app/frontend-service/node_modules
             - /app/backend-service/node_modules
         networks:

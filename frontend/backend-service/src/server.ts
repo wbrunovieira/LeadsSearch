@@ -1,15 +1,17 @@
 import Fastify from "fastify";
-import { initDatabase, insertLog } from './database/sqliteService';
+import cors from "@fastify/cors";
+import { initDatabase} from "./database/sqliteService";
 import { captureDockerLogs } from "./logs/logService";
 import { Database } from "sql.js";
 
 const server = Fastify({ logger: true });
 let db: Database | null = null;
 
+server.register(cors, {
+    origin: "*",
+});
 
-
-server.get('/api/logs', async (request, reply) => {
-
+server.get("/api/logs", async (request, reply) => {
     if (!db) {
         reply.status(500).send({ error: "Banco de dados não inicializado" });
         return;
@@ -17,7 +19,7 @@ server.get('/api/logs', async (request, reply) => {
 
     const logs = db.exec("SELECT * FROM logs ORDER BY id DESC") || [];
     reply.send(logs[0]?.values || []);
-  });
+});
 
 const startServer = async () => {
     try {

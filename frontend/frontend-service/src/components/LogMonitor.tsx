@@ -12,7 +12,8 @@ const LogMonitor: React.FC = () => {
 
     const fetchLogs = async () => {
         try {
-            const response = await fetch("/api/logs");
+            const response = await fetch("http://localhost:3333/api/logs");
+            console.log("fetchLogs response",response)
             const data = await response.json();
             setLogs(data.map((log: any) => `${log[1]}: ${log[2]}`));
         } catch (error) {
