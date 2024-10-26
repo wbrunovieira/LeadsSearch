@@ -21,7 +21,6 @@ COPY frontend-service/ ./
 WORKDIR /app
 
 
-EXPOSE 3333
 EXPOSE 5173
 
 

@@ -47,6 +47,7 @@ services:
 
     elasticsearch:
         image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
+        init: true
         environment:
             - discovery.type=single-node
             - xpack.security.enabled=false
@@ -81,6 +82,7 @@ services:
         restart: always
         environment:
             - ELASTICSEARCH_HOST=elasticsearch
+            - ELASTICSEARCH_PORT=9200
             - RABBITMQ_HOST=rabbitmq
             - RABBITMQ_PORT=5672
             - REDIS_HOST=redis
@@ -197,7 +199,7 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-        command: ["wait-for-it.sh", "db", "5432", "--", "python", "main.py"]
+
         networks:
             - leads-network
 
@@ -216,7 +218,7 @@ services:
             context: ./frontend
             dockerfile: Dockerfile
         ports:
-            - "3333:3333"
+            - "3333"
             - "5173:5173"
         volumes:
             - ./frontend/backend-service:/app/backend-service

@@ -216,31 +216,27 @@ func setupDatabase() (*sql.DB, error) {
             leads_extracted INTEGER,
             next_page_token TEXT
         );
-
-		CREATE TABLE IF NOT EXISTS search_progress (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			categoria_id INTEGER,
-			country_id INTEGER,
-			state_id INTEGER,
-			city_id INTEGER,
-			district_id INTEGER,
-			zipcode_id INTEGER,
-            pages_fetched INTEGER DEFAULT 0,      
+        CREATE TABLE IF NOT EXISTS search_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            categoria_id INTEGER,
+            country_id INTEGER,
+            state_id INTEGER,
+            city_id INTEGER,
+            district_id INTEGER,
+            zipcode_id INTEGER,
+            pages_fetched INTEGER DEFAULT 0,
             leads_extracted INTEGER DEFAULT 0,
-            search_done INTEGER DEFAULT 0, 
-			pages_fetched INTEGER DEFAULT 0,
-			leads_extracted INTEGER DEFAULT 0,
-			search_done INTEGER DEFAULT 0, -- campo para indicar se a pesquisa foi concluída
-			search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- data de criação
-
-			FOREIGN KEY(categoria_id) REFERENCES categoria(id),
-			
-			FOREIGN KEY(country_id) REFERENCES country(id),
-			FOREIGN KEY(state_id) REFERENCES state(id),
-			FOREIGN KEY(city_id) REFERENCES city(id),
-			FOREIGN KEY(district_id) REFERENCES district(id),
-			FOREIGN KEY(zipcode_id) REFERENCES zipcode(id)
-		);
+            search_done INTEGER DEFAULT 0, -- campo para indicar se a pesquisa foi concluída
+            search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- data de criação
+            FOREIGN KEY(categoria_id) REFERENCES categoria(id),
+            FOREIGN KEY(country_id) REFERENCES country(id),
+            FOREIGN KEY(state_id) REFERENCES state(id),
+            FOREIGN KEY(city_id) REFERENCES city(id),
+            FOREIGN KEY(district_id) REFERENCES district(id),
+            FOREIGN KEY(zipcode_id) REFERENCES zipcode(id)
+        );
+        
+        
 	`
 
     statements := strings.Split(createTablesSQL, ";")
