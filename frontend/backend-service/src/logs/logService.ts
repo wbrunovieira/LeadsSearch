@@ -1,24 +1,51 @@
-import { exec } from 'child_process';
-import { Database } from 'sql.js';
-import { insertLog } from '../database/sqliteService';
+import { exec } from "child_process";
+import { Database } from "sql.js";
+import { insertLog } from "../database/sqliteService";
 
+export const captureDockerLogs = (db: Database): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const command = "echo 'Teste de execução de comando'";
 
-export const captureDockerLogs = (db: Database) => {
-  const command = 'docker-compose logs -f lead-search';
-  const childProcess = exec(command);
-  console.log('captureDockerLogs command',command)
+        console.log("Iniciando execução do comando:", command);
 
-  childProcess.stdout?.on('data', (data: string) => {
-    console.log(`Log capturado: ${data}`);
-    insertLog(db, data);
-  });
+        const childProcess = exec(command, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Erro ao executar o comando: ${error.message}`);
+                reject(error);
+                return;
+            }
 
-  childProcess.stderr?.on('data', (data: string) => {
-    console.log(`Erro capturado: ${data}`);
-    insertLog(db, `ERROR: ${data}`);
-  });
+            if (stderr) {
+                console.error(`Erro no comando: ${stderr}`);
+                reject(new Error(stderr));
+                return;
+            }
+        });
 
-  childProcess.on('close', (code: number) => {
-    console.log(`Processo de logs finalizado com código ${code}`);
-  });
+        console.log("captureDockerLogs command initiated");
+
+        if (!childProcess.stdout) {
+            const error = new Error(
+                "Erro: Não foi possível capturar stdout do processo filho."
+            );
+            console.error(error.message);
+            reject(error);
+            return;
+        }
+
+        childProcess.stdout.on("data", (data) => {
+            console.log(`Log capturado: ${data}`);
+            insertLog(db, data);
+        });
+
+        childProcess.stderr?.on("data", (data) => {
+            console.log(`Erro capturado: ${data}`);
+            insertLog(db, `ERROR: ${data}`);
+        });
+
+        childProcess.on("close", (code) => {
+            console.log(`Processo de logs finalizado com código ${code}`);
+            resolve();
+        });
+    });
 };

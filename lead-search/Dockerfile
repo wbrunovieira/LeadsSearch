@@ -8,7 +8,7 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 COPY . .
-# Compilando o binário estático
+
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /usr/local/bin/app .
 
 FROM debian:bookworm-slim
