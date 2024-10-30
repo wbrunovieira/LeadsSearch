@@ -224,8 +224,10 @@ services:
             - ./frontend/backend-service:/app/backend-service
             - ./frontend/frontend-service:/app/frontend-service
             - ./data:/app/data
+            - ./backend-service/logs.db:/app/logs.db
             - /app/frontend-service/node_modules
             - /app/backend-service/node_modules
+
         networks:
             - leads-network
 

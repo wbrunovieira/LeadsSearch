@@ -1,0 +1,1 @@
+{"root":["./src/server.ts","./src/database/sqliteService.ts","./src/logs/logService.ts"],"errors":true,"version":"5.6.3"}

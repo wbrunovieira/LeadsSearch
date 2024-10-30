@@ -9,8 +9,11 @@ RUN npm install -g npm-run-all typescript
 WORKDIR /app/backend-service
 COPY backend-service/package.json ./   
 RUN npm install --include=dev                        
-COPY backend-service/ ./    
+COPY backend-service/ ./  
+
+
 RUN npm run build           
+
 
 
 WORKDIR /app/frontend-service

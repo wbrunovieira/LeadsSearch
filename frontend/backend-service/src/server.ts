@@ -1,48 +1,32 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { initDatabase } from "./database/sqliteService";
-import { captureDockerLogs } from "./logs/logService";
-import { Database } from "sql.js";
+import { captureDockerLogs } from "./logs/logService.js";
+import { getLogs } from "./database/sqliteService.js";
+
 
 const server = Fastify({ logger: true });
-let db: Database | null = null;
 
-server.register(cors, {
-    origin: "*",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-});
+server.register(cors, { origin: "*", methods: ["GET", "POST"] });
 
-server.get("/api/logs", async (request, reply) => {
-    console.log("Rota /api/logs acessada");
-    const logs = db ? db.exec("SELECT * FROM logs ORDER BY id DESC") : null;
-
-    if (!db) {
-        reply.status(500).send({ error: "Banco de dados não inicializado" });
-        return;
+server.get('/api/logs', async (request, reply) => {
+    try {
+      const logs = getLogs();  
+      reply.send(logs);
+    } catch (error) {
+      console.error('Erro ao buscar logs:', error);
+      reply.status(500).send({ error: 'Erro ao buscar logs.' });
     }
-    if (!logs || logs.length === 0) {
-        reply
-            .status(500)
-            .send({
-                error: "Banco de dados não inicializado ou falha na consulta",
-            });
-        return;
-    }
-
-    reply.send(logs[0]?.values || []);
-});
+  });
 
 const startServer = async () => {
     try {
-        db = await initDatabase();
+        console.log("Iniciando servidor...");
 
-        console.log("db inicializado com sucesso.");
         try {
-            await captureDockerLogs(db);
-            console.log("CaptureDockerLogs finalizado com sucesso.");
+            await captureDockerLogs();
+            console.log("Logs do Docker capturados com sucesso.");
         } catch (error) {
-            console.error("Erro durante a execução de captureDockerLogs:", error);
+            console.error("Erro ao capturar logs do Docker:", error);
         }
 
         await server.listen({ port: 3333 });
@@ -52,6 +36,5 @@ const startServer = async () => {
         process.exit(1);
     }
 };
-
 
 startServer();
