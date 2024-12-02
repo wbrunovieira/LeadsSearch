@@ -1,241 +1,266 @@
 version: "3.8"
 
 services:
-    # Serviços Fundamentais
-    rabbitmq:
-        image: "rabbitmq:3-management"
-        ports:
-            - "5672:5672"
-            - "15672:15672"
-        stop_grace_period: 60s
-        healthcheck:
-            test: ["CMD", "rabbitmqctl", "status"]
-            interval: 60s
-            timeout: 30s
-            retries: 10
-        networks:
-            - leads-network
+  # Serviços Fundamentais
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 60s
+      timeout: 30s
+      retries: 10
+    networks:
+      - leads-network
 
-    db:
-        image: postgres:13
-        environment:
-            POSTGRES_DB: leadsdb
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgres
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
-            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-        ports:
-            - "5432:5432"
-        healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-        networks:
-            - leads-network
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: leadsdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leads-network
 
-    redis:
-        image: redis:alpine
-        container_name: redis
-        ports:
-            - "6379:6379"
-        volumes:
-            - redis_data:/data
-        networks:
-            - leads-network
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - leads-network
 
-    elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
-        init: true
-        environment:
-            - discovery.type=single-node
-            - xpack.security.enabled=false
-            - ES_JAVA_OPTS=-Xms4g -Xmx4g
-        ports:
-            - "9200:9200"
-        volumes:
-            - elasticsearch_data:/usr/share/elasticsearch/data
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
-            interval: 40s
-            timeout: 15s
-            retries: 7
-        stop_grace_period: 90s
-        networks:
-            - leads-network
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
+    init: true
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms4g -Xmx4g
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 40s
+      timeout: 15s
+      retries: 7
+    stop_grace_period: 90s
+    networks:
+      - leads-network
 
-    kibana:
-        image: docker.elastic.co/kibana/kibana:7.9.2
-        ports:
-            - "5601:5601"
-        environment:
-            - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-        depends_on:
-            - elasticsearch
-        networks:
-            - leads-network
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.9.2
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - leads-network
 
-    # Serviços de Armazenamento e Processamento de Dados
-    datalake:
-        build: ./datalake
-        restart: always
-        environment:
-            - ELASTICSEARCH_HOST=elasticsearch
-            - ELASTICSEARCH_PORT=9200
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-            - REDIS_HOST=redis
-            - REDIS_PORT=6379
-        ports:
-            - "8087:8087"
-        command: python main.py
+  # Serviços de Armazenamento e Processamento de Dados
+  datalake:
+    build: ./datalake
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8087:8087"
+    command: python main.py
 
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-            elasticsearch:
-                condition: service_healthy
-        networks:
-            - leads-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - leads-network
 
-    data-processor:
-        build: ./data-processor
-        ports:
-            - "8081:8081"
-        environment:
-            - PORT=8081
-        depends_on:
-            - db
-        networks:
-            - leads-network
+  data-processor:
+    build: ./data-processor
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+    depends_on:
+      - db
+    networks:
+      - leads-network
 
-    # Serviços de Scraping e Fetching
-    scrapper:
-        build: ./scrapper
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-        networks:
-            - leads-network
+  # Serviços de Scraping e Fetching
+  scrapper:
+    build: ./scrapper
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leads-network
 
-    link-fetcher:
-        build: ./link-fetcher
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-        networks:
-            - leads-network
+  link-fetcher:
+    build: ./link-fetcher
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - leads-network
 
-    website-fetcher:
-        build: ./website-fetcher
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-        networks:
-            - leads-network
+  website-fetcher:
+    build: ./website-fetcher
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - leads-network
 
-    validator-service:
-        build: ./validator-service
-        ports:
-            - "8090:8090"
-        environment:
-            - PORT=8090
+  validator-service:
+    build: ./validator-service
+    ports:
+      - "8090:8090"
+    environment:
+      - PORT=8090
 
-        networks:
-            - leads-network
+    networks:
+      - leads-network
 
-    # Serviços de API e Inteligência Artificial
-    api:
-        build: ./api
-        ports:
-            - "8085:8085"
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-            - PORT=8085
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-            db:
-                condition: service_healthy
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-        networks:
-            - leads-network
+  # Serviços de API e Inteligência Artificial
+  api:
+    build: ./api
+    ports:
+      - "8085:8085"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - PORT=8085
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leads-network
 
-    lead-search:
-        build: ./lead-search
-        ports:
-            - "8082:8082"
-        environment:
-            - RABBITMQ_HOST=rabbitmq
-            - RABBITMQ_PORT=5672
-        volumes:
-            - ./data:/usr/src/app/data
-            - /Users/bruno/projects/leads_search/lead-search:/app/lead-search
-        depends_on:
-            rabbitmq:
-                condition: service_healthy
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
+  lead-search:
+    build: ./lead-search
+    ports:
+      - "8082:8082"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    volumes:
+      - ./data:/usr/src/app/data
+      - /Users/bruno/projects/leads_search/lead-search:/app/lead-search
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-        networks:
-            - leads-network
+    networks:
+      - leads-network
 
-    ai:
-        build: ./ai_service
-        volumes:
-            - ./ai:/app/src
-        depends_on:
-            - db
-        command: ["python", "main.py"]
-        networks:
-            - leads-network
+  ai:
+    build: ./ai_service
+    volumes:
+      - ./ai:/app/src
+    depends_on:
+      - db
+    command: ["python", "main.py"]
+    networks:
+      - leads-network
 
-    frontend:
-        build:
-            context: ./frontend
-            dockerfile: Dockerfile
-        ports:
-            - "3333"
-            - "5173:5173"
-        volumes:
-            - ./frontend/backend-service:/app/backend-service
-            - ./frontend/frontend-service:/app/frontend-service
-            - ./data:/app/data
-            - ./backend-service/logs.db:/app/logs.db
-            - /app/frontend-service/node_modules
-            - /app/backend-service/node_modules
+  grafana:
+    image: grafana/grafana:9.4.3
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      loki:
+        condition: service_started
+    networks:
+      - leads-network
+    volumes:
+      - grafana_data:/var/lib/grafana
 
-        networks:
-            - leads-network
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - leads-network
+
+  promtail:
+    image: grafana/promtail:2.7.1
+    networks:
+      - leads-network
+    volumes:
+      - /var/log:/var/log
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+  loki:
+    image: grafana/loki:2.7.1
+    ports:
+      - "3100:3100"
+    networks:
+      - leads-network
+    volumes:
+      - loki_data:/loki
 
 networks:
-    leads-network:
-        driver: bridge
+  leads-network:
+    driver: bridge
 
 volumes:
-    postgres_data:
-    redis_data:
-    elasticsearch_data:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+  loki_data:
+  grafana_data:
