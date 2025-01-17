@@ -55,6 +55,15 @@ func main() {
 		startSearchHandler(w, r, db, ch)
 	})
 
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
 	log.Println("Starting server on port 8082...")
 	err = http.ListenAndServe(":8082", nil)
 	if err != nil {
@@ -104,6 +113,10 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 
 	categoryID := r.URL.Query().Get("category_id")
 	zipcodeIDString := r.URL.Query().Get("zipcode_id")
+	if zipcodeIDString == "" {
+		http.Error(w, "Missing zipcode_id", http.StatusBadRequest)
+		return
+	}
 	radius := r.URL.Query().Get("radius")
 
 	if categoryID == "" || zipcodeIDString == "" || radius == "" {
@@ -117,9 +130,9 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 		return
 	}
 
-	zipcodeID := r.URL.Query().Get("zipcode_id")
-	if zipcodeID == "" {
-		http.Error(w, "Missing zipcode_id", http.StatusBadRequest)
+	zipcodeID, err := strconv.Atoi(zipcodeIDString)
+	if err != nil {
+		http.Error(w, "Invalid zipcode_id value", http.StatusBadRequest)
 		return
 	}
 
@@ -140,7 +153,6 @@ func setupDatabase() (*sql.DB, error) {
 		return nil, err
 	}
 
-	// Create tables
 	createTablesSQL := `
 		CREATE TABLE IF NOT EXISTS country (
 			id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -261,26 +273,38 @@ func updateSearchProgress(db *sql.DB, progressID int, pagesFetched int, leadsExt
 }
 
 func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
+	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius)
+
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
 	}
 
+	log.Println("Buscando nome da categoria no banco de dados...")
 	categoryName, err := repository.GetCategoryNameByID(db, categoryID)
 	if err != nil {
+		log.Printf("Erro ao buscar o nome da categoria: %v", err)
 		return fmt.Errorf("Failed to get category name: %v", err)
 	}
+	log.Printf("Categoria encontrada: %s", categoryName)
 
+	log.Println("Buscando informações de localização pelo zipcode ID...")
 	locationInfo, err := repository.GetLocationInfoByZipcodeID(db, zipcodeID)
 	if err != nil {
+		log.Printf("Erro ao buscar informações de localização para zipcode ID %d: %v", zipcodeID, err)
 		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
 	}
+	log.Printf("Informações de localização encontradas: %+v", locationInfo)
 
+	log.Println("Buscando o primeiro CEP no intervalo...")
 	startZip, err := repository.GetFirstZipCodeInRange(db, zipcodeID)
 	if err != nil {
-		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
+		log.Printf("Erro ao buscar o primeiro CEP no intervalo para zipcode ID %d: %v", zipcodeID, err)
+		return fmt.Errorf("Failed to get first zip code in range: %v", err)
 	}
+	log.Printf("Primeiro CEP encontrado: %s", startZip)
 
+	log.Println("Inserindo progresso inicial da busca no banco de dados...")
 	progress := repository.SearchProgress{
 		CategoriaID: categoryID,
 		CountryID:   locationInfo.CountryID,
@@ -294,31 +318,37 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 
 	progressID, err := repository.InsertSearchProgress(db, progress)
 	if err != nil {
+		log.Printf("Erro ao inserir progresso inicial da busca: %v", err)
 		return fmt.Errorf("Failed to insert search progress: %v", err)
 	}
+	log.Printf("Progresso inicial inserido com ID: %d", progressID)
 
+	log.Println("Obtendo o nome da cidade pelo ID...")
 	cityName, err := repository.GetCityNameByID(db, locationInfo.CityID)
 	if err != nil {
+		log.Printf("Erro ao obter o nome da cidade para city ID %d: %v", locationInfo.CityID, err)
 		return fmt.Errorf("Failed to get city name: %v", err)
 	}
+	log.Printf("Nome da cidade: %s", cityName)
 
-	log.Printf("Search progress inserted with ID: %d", progressID)
-
-	maxPages := 1
-	totalLeadsExtracted := 0
-
+	log.Println("Geocodificando o CEP inicial...")
 	service := googleplaces.NewService(apiKey)
-
 	coordinates, err := service.GeocodeZip(startZip)
 	if err != nil {
-		log.Fatalf("Failed to get coordinates for city: %v", err)
+		log.Printf("Erro ao geocodificar o CEP %s: %v", startZip, err)
+		return fmt.Errorf("Failed to get coordinates for zip code: %v", err)
 	}
+	log.Printf("Coordenadas encontradas: %s", coordinates)
 
+	log.Println("Iniciando busca no Google Places...")
+	maxPages := 1
+	totalLeadsExtracted := 0
 	for currentPage := 1; currentPage <= maxPages; currentPage++ {
-		log.Printf("Iniciando busca na página %d para a categoria %s na cidade %s", currentPage, categoryName, locationInfo.CityName)
+		log.Printf("Buscando página %d para a categoria %s na cidade %s", currentPage, categoryName, cityName)
 
 		placeDetailsFromSearch, err := service.SearchPlaces(categoryName, coordinates, radius, maxPages)
 		if err != nil {
+			log.Printf("Erro ao buscar lugares: %v", err)
 			return fmt.Errorf("Error fetching places: %v", err)
 		}
 
@@ -326,9 +356,11 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 			placeID := place["PlaceID"].(string)
 			placeDetails, err := service.GetPlaceDetails(placeID)
 			if err != nil {
-				log.Printf("Failed to get details for place ID %s: %v", placeID, err)
+				log.Printf("Erro ao obter detalhes para o place ID %s: %v", placeID, err)
 				continue
 			}
+
+			log.Printf("Detalhes do lugar obtidos: %+v", placeDetails)
 
 			placeDetails["Category"] = categoryName
 			placeDetails["City"] = cityName
@@ -336,20 +368,16 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 
 			err = publishLeadToRabbitMQ(ch, placeDetails)
 			if err != nil {
-				log.Printf("Failed to publish lead to RabbitMQ: %v", err)
+				log.Printf("Erro ao publicar lead no RabbitMQ: %v", err)
 			}
 
 			totalLeadsExtracted++
 		}
 
-		err = googleplaces.SaveProgressToDB(db, categoryName, coordinates, radius, currentPage, totalLeadsExtracted, "nextPageTokenExample")
-		if err != nil {
-			return fmt.Errorf("Failed to save progress: %v", err)
-		}
-
-		log.Printf("Search progress updated: page %d completed, %d leads extracted", currentPage, totalLeadsExtracted)
+		log.Printf("Progresso da busca: página %d completada, %d leads extraídos", currentPage, totalLeadsExtracted)
 	}
 
+	log.Println("Busca concluída com sucesso!")
 	return nil
 }
 

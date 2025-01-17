@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   # Serviços Fundamentais
@@ -189,8 +188,10 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
     volumes:
-      - ./data:/usr/src/app/data
-      - /Users/bruno/projects/leads_search/lead-search:/app/lead-search
+      - /home/wbruno/projects/LeadsSearch/lead-search/data/geo.db:/usr/src/app/data/geo.db
+      - /home/wbruno/projects/LeadsSearch/lead-search:/app/lead-search
+      
+      
     depends_on:
       rabbitmq:
         condition: service_healthy

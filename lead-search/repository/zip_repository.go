@@ -7,15 +7,15 @@ import (
 
 // Estrutura para armazenar todos os IDs e nomes que você precisa
 type LocationInfo struct {
-	ZipcodeID   string
-	DistrictID  string
+	ZipcodeID    string
+	DistrictID   string
 	DistrictName string
-	CityID      string
-	CityName    string
-	StateID     string
-	StateName   string
-	CountryID   string
-	CountryName string
+	CityID       string
+	CityName     string
+	StateID      string
+	StateName    string
+	CountryID    string
+	CountryName  string
 }
 
 // Função para buscar todos os IDs e nomes com base no zipcodeID
@@ -41,7 +41,7 @@ func GetLocationInfoByZipcodeID(db *sql.DB, zipcodeID int) (*LocationInfo, error
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("No location found for zipcode ID %s", zipcodeID)
+			return nil, fmt.Errorf("No location found for zipcode ID %d", zipcodeID)
 		}
 		return nil, err
 	}

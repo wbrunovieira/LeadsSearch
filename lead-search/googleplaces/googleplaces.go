@@ -104,7 +104,18 @@ func loadToken(queryKey string) (string, int, int, error) {
 				return "", 0, 0, fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
 			}
 
-			err = os.WriteFile("/app/lead-search/next_page_tokens.json", tokenStoreBytes, 0644)
+			directory := "/app/lead-search"
+
+			if _, err := os.Stat(directory); os.IsNotExist(err) {
+				log.Printf("Diretório %s não encontrado. Criando...", directory)
+				err = os.MkdirAll(directory, os.ModePerm)
+				if err != nil {
+					return "", 0, 0, fmt.Errorf("erro ao criar o diretório %s: %v", directory, err)
+				}
+			}
+			filePath := directory + "/next_page_tokens.json"
+
+			err = os.WriteFile(filePath, tokenStoreBytes, 0644)
 			if err != nil {
 				return "", 0, 0, fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
 			}

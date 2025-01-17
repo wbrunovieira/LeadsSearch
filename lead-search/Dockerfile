@@ -16,10 +16,12 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    netcat-openbsd curl
+  netcat-openbsd curl
 
 COPY --from=builder /usr/local/bin/app /usr/local/bin/app
 COPY .env /app/.env
+
+COPY data/geo.db /usr/src/app/data/geo.db
 COPY wait-for-it.sh /usr/local/bin/wait-for-it.sh
 
 RUN chmod +x /usr/local/bin/wait-for-it.sh
