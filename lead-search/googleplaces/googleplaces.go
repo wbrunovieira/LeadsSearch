@@ -91,30 +91,32 @@ func generateQueryKey(query string, location string, radius int) string {
 }
 
 func loadToken(queryKey string) (string, int, int, error) {
+
+	const directory = "/app/lead-search"
+	const filePath = directory + "/next_page_tokens.json"
+
 	var tokenStore TokenStore
 
-	file, err := os.ReadFile("next_page_tokens.json")
+	file, err := os.ReadFile(filePath)
 	if err != nil {
+
 		if os.IsNotExist(err) {
+			log.Printf("Arquivo %s não encontrado. Criando um novo...", filePath)
 
 			tokenStore = TokenStore{QueryTokens: make(map[string]map[string]interface{})}
 
-			tokenStoreBytes, err := json.MarshalIndent(tokenStore, "", "  ")
-			if err != nil {
-				return "", 0, 0, fmt.Errorf("erro ao fazer marshal dos tokens: %v", err)
-			}
-
-			directory := "/app/lead-search"
-
-			if _, err := os.Stat(directory); os.IsNotExist(err) {
+			if _, dirErr := os.Stat(directory); os.IsNotExist(dirErr) {
 				log.Printf("Diretório %s não encontrado. Criando...", directory)
-				err = os.MkdirAll(directory, os.ModePerm)
-				if err != nil {
-					return "", 0, 0, fmt.Errorf("erro ao criar o diretório %s: %v", directory, err)
+				dirErr = os.MkdirAll(directory, os.ModePerm)
+				if dirErr != nil {
+					return "", 0, 0, fmt.Errorf("erro ao criar o diretório %s: %v", directory, dirErr)
 				}
 			}
-			filePath := directory + "/next_page_tokens.json"
 
+			tokenStoreBytes, jsonErr := json.MarshalIndent(tokenStore, "", "  ")
+			if jsonErr != nil {
+				return "", 0, 0, fmt.Errorf("erro ao serializar tokens: %v", jsonErr)
+			}
 			err = os.WriteFile(filePath, tokenStoreBytes, 0644)
 			if err != nil {
 				return "", 0, 0, fmt.Errorf("erro ao criar o arquivo JSON vazio: %v", err)
@@ -125,7 +127,7 @@ func loadToken(queryKey string) (string, int, int, error) {
 		return "", 0, 0, fmt.Errorf("erro ao ler o arquivo JSON: %v", err)
 	}
 
-	if len(file) == 0 {
+	if len(strings.TrimSpace(string(file))) == 0 {
 		tokenStore = TokenStore{QueryTokens: make(map[string]map[string]interface{})}
 	} else {
 
@@ -143,11 +145,11 @@ func loadToken(queryKey string) (string, int, int, error) {
 
 		if tokenOk && pagesOk && leadsOk {
 			return token, int(pagesFetched), int(leadsExtracted), nil
-		} else {
-			return "", 0, 0, fmt.Errorf("token or counts could not be cast properly: %v", queryData)
 		}
+		return "", 0, 0, fmt.Errorf("erro ao converter valores: %v", queryData)
 	}
 
+	// Retorna valores padrão se a chave não existir
 	return "", 0, 0, nil
 }
 
