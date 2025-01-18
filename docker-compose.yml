@@ -220,7 +220,8 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
     depends_on:
       loki:
         condition: service_started
