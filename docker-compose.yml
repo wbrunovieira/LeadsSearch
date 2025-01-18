@@ -256,6 +256,15 @@ services:
     volumes:
       - loki_data:/loki
 
+  redis-exporter:
+    image: oliver006/redis_exporter
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: redis:6379
+    networks:
+      - leads-network
+
 networks:
   leads-network:
     driver: bridge
