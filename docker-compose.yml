@@ -264,6 +264,17 @@ services:
       REDIS_ADDR: redis:6379
     networks:
       - leads-network
+  
+  rabbitmq-exporter:
+      image: kbudde/rabbitmq-exporter
+      ports:
+        - "9419:9419"
+      environment:
+        RABBIT_URL: http://rabbitmq:15672
+        RABBIT_USER: guest
+        RABBIT_PASSWORD: guest
+      networks:
+        - leads-network
 
 networks:
   leads-network:

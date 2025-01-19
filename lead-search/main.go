@@ -20,7 +20,82 @@ import (
 	"github.com/streadway/amqp"
 
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var totalRequests = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "leadsearch_total_requests",
+		Help: "Total de requisições recebidas pelo serviço lead-search",
+	},
+	[]string{"endpoint", "method"},
+)
+
+var processingDuration = promauto.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "leadsearch_processing_duration_seconds",
+		Help:    "Duração do processamento das requisições em segundos",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"endpoint"},
+)
+
+var totalErrors = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "leadsearch_total_errors",
+		Help: "Número total de erros encontrados",
+	},
+	[]string{"endpoint", "type"},
+)
+
+var (
+	startSearchRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "start_search_requests_total",
+			Help: "Total de requisições ao método startSearch.",
+		},
+		[]string{"category_id", "status"},
+	)
+
+	startSearchErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "start_search_errors_total",
+			Help: "Total de erros durante o método startSearch.",
+		},
+		[]string{"category_id", "error_stage"},
+	)
+
+	leadsExtracted = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "leads_extracted_total",
+			Help: "Total de leads extraídos com sucesso.",
+		},
+		[]string{"category_id"},
+	)
+
+	startSearchDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "start_search_duration_seconds",
+			Help:    "Duração do método startSearch.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"category_id"},
+	)
+
+	geocodingDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "geocoding_duration_seconds",
+			Help:    "Duração da geocodificação do CEP.",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(startSearchRequests, startSearchErrors, leadsExtracted, startSearchDuration, geocodingDuration)
+}
 
 func main() {
 
@@ -51,6 +126,7 @@ func main() {
 	}
 	defer db.Close()
 
+	http.Handle("/metrics", promhttp.Handler())
 	http.HandleFunc("/start-search", func(w http.ResponseWriter, r *http.Request) {
 		startSearchHandler(w, r, db, ch)
 	})
@@ -106,7 +182,11 @@ func connectToRabbitMQ() (*amqp.Connection, *amqp.Channel, error) {
 }
 
 func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *amqp.Channel) {
+	startTime := time.Now()
+	totalRequests.WithLabelValues("/start-search", r.Method).Inc()
+
 	if r.Method != http.MethodPost {
+		totalErrors.WithLabelValues("/start-search", "invalid_method").Inc()
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
@@ -114,40 +194,52 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 	categoryID := r.URL.Query().Get("category_id")
 	zipcodeIDString := r.URL.Query().Get("zipcode_id")
 	if zipcodeIDString == "" {
+		totalErrors.WithLabelValues("/start-search", "missing_zipcode_id").Inc()
 		http.Error(w, "Missing zipcode_id", http.StatusBadRequest)
 		return
 	}
 	radius := r.URL.Query().Get("radius")
 
-	if categoryID == "" || zipcodeIDString == "" || radius == "" {
+	if categoryID == "" || radius == "" {
+		totalErrors.WithLabelValues("/start-search", "missing_params").Inc()
 		http.Error(w, "Missing required parameters", http.StatusBadRequest)
 		return
 	}
 
 	radiusInt, err := strconv.Atoi(radius)
 	if err != nil {
+		totalErrors.WithLabelValues("/start-search", "invalid_radius").Inc()
 		http.Error(w, "Invalid radius value", http.StatusBadRequest)
 		return
 	}
 
 	zipcodeID, err := strconv.Atoi(zipcodeIDString)
 	if err != nil {
+		totalErrors.WithLabelValues("/start-search", "invalid_zipcode_id").Inc()
 		http.Error(w, "Invalid zipcode_id value", http.StatusBadRequest)
 		return
 	}
 
 	err = startSearch(categoryID, zipcodeID, radiusInt, db, ch)
 	if err != nil {
+		totalErrors.WithLabelValues("/start-search", "search_failed").Inc()
 		http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	processingDuration.WithLabelValues("/start-search").Observe(time.Since(startTime).Seconds())
 	fmt.Fprintf(w, "Search started for categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radiusInt)
-
 }
 
 func setupDatabase() (*sql.DB, error) {
 	dbPath := "/usr/src/app/data/geo.db"
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		log.Printf("Banco de dados não encontrado, criando novo em: %s", dbPath)
+	} else {
+		log.Printf("Banco de dados já existe em: %s", dbPath)
+	}
+
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, err
@@ -273,16 +365,23 @@ func updateSearchProgress(db *sql.DB, progressID int, pagesFetched int, leadsExt
 }
 
 func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
+
 	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius)
+	startTime := time.Now()
+	startSearchRequests.WithLabelValues(categoryID, "started").Inc()
+	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius)
+	totalRequests.WithLabelValues("startSearch", "internal").Inc()
 
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
 	if apiKey == "" {
+		startSearchErrors.WithLabelValues(categoryID, "api_key_missing").Inc()
 		return fmt.Errorf("API key is required. Set the GOOGLE_PLACES_API_KEY environment variable.")
 	}
 
 	log.Println("Buscando nome da categoria no banco de dados...")
 	categoryName, err := repository.GetCategoryNameByID(db, categoryID)
 	if err != nil {
+		startSearchErrors.WithLabelValues(categoryID, "get_category_name").Inc()
 		log.Printf("Erro ao buscar o nome da categoria: %v", err)
 		return fmt.Errorf("Failed to get category name: %v", err)
 	}
@@ -291,6 +390,7 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 	log.Println("Buscando informações de localização pelo zipcode ID...")
 	locationInfo, err := repository.GetLocationInfoByZipcodeID(db, zipcodeID)
 	if err != nil {
+		startSearchErrors.WithLabelValues(categoryID, "get_location_info").Inc()
 		log.Printf("Erro ao buscar informações de localização para zipcode ID %d: %v", zipcodeID, err)
 		return fmt.Errorf("Failed to get location info by zipcode: %v", err)
 	}
@@ -332,15 +432,19 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 	log.Printf("Nome da cidade: %s", cityName)
 
 	log.Println("Geocodificando o CEP inicial...")
+	geoStartTime := time.Now()
 	service := googleplaces.NewService(apiKey)
 	coordinates, err := service.GeocodeZip(startZip)
 	if err != nil {
+		startSearchErrors.WithLabelValues(categoryID, "geocode_zip").Inc()
 		log.Printf("Erro ao geocodificar o CEP %s: %v", startZip, err)
 		return fmt.Errorf("Failed to get coordinates for zip code: %v", err)
 	}
+	geocodingDuration.Observe(time.Since(geoStartTime).Seconds())
 	log.Printf("Coordenadas encontradas: %s", coordinates)
 
 	log.Println("Iniciando busca no Google Places...")
+	totalLeads := 0
 	maxPages := 1
 	totalLeadsExtracted := 0
 	for currentPage := 1; currentPage <= maxPages; currentPage++ {
@@ -356,6 +460,7 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 			placeID := place["PlaceID"].(string)
 			placeDetails, err := service.GetPlaceDetails(placeID)
 			if err != nil {
+				startSearchErrors.WithLabelValues(categoryID, "search_places").Inc()
 				log.Printf("Erro ao obter detalhes para o place ID %s: %v", placeID, err)
 				continue
 			}
@@ -376,6 +481,11 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 
 		log.Printf("Progresso da busca: página %d completada, %d leads extraídos", currentPage, totalLeadsExtracted)
 	}
+
+	duration := time.Since(startTime).Seconds()
+	startSearchDuration.WithLabelValues(categoryID).Observe(duration)
+	startSearchRequests.WithLabelValues(categoryID, "completed").Inc()
+	log.Printf("Busca concluída com sucesso! Total de leads: %d", totalLeads)
 
 	log.Println("Busca concluída com sucesso!")
 	return nil
