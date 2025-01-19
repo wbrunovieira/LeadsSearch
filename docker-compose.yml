@@ -1,4 +1,3 @@
-
 services:
   # Serviços Fundamentais
   rabbitmq:
@@ -14,6 +13,13 @@ services:
       retries: 10
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   db:
     image: postgres:13
@@ -33,6 +39,13 @@ services:
       retries: 5
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   redis:
     image: redis:alpine
@@ -43,6 +56,13 @@ services:
       - redis_data:/data
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.9.2
@@ -63,6 +83,13 @@ services:
     stop_grace_period: 90s
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.9.2
@@ -74,6 +101,13 @@ services:
       - elasticsearch
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   # Serviços de Armazenamento e Processamento de Dados
   datalake:
@@ -97,6 +131,13 @@ services:
         condition: service_healthy
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   data-processor:
     build: ./data-processor
@@ -108,6 +149,13 @@ services:
       - db
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   # Serviços de Scraping e Fetching
   scrapper:
@@ -125,6 +173,13 @@ services:
       retries: 5
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   link-fetcher:
     build: ./link-fetcher
@@ -136,6 +191,13 @@ services:
         condition: service_healthy
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   website-fetcher:
     build: ./website-fetcher
@@ -147,6 +209,13 @@ services:
         condition: service_healthy
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   validator-service:
     build: ./validator-service
@@ -154,9 +223,15 @@ services:
       - "8090:8090"
     environment:
       - PORT=8090
-
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   # Serviços de API e Inteligência Artificial
   api:
@@ -179,6 +254,13 @@ services:
       retries: 5
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   lead-search:
     build: ./lead-search
@@ -190,8 +272,6 @@ services:
     volumes:
       - /home/wbruno/projects/LeadsSearch/lead-search/data/geo.db:/usr/src/app/data/geo.db
       - /home/wbruno/projects/LeadsSearch/lead-search:/app/lead-search
-      
-      
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -200,9 +280,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   ai:
     build: ./ai_service
@@ -213,6 +299,13 @@ services:
     command: ["python", "main.py"]
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   grafana:
     image: grafana/grafana:9.4.3
@@ -229,6 +322,13 @@ services:
       - leads-network
     volumes:
       - grafana_data:/var/lib/grafana
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   prometheus:
     image: prom/prometheus:latest
@@ -238,6 +338,13 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   promtail:
     image: grafana/promtail:2.7.1
@@ -247,6 +354,14 @@ services:
       - /var/log:/var/log
       - ./promtail/promtail-config.yml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
+
   loki:
     image: grafana/loki:2.7.1
     ports:
@@ -255,6 +370,13 @@ services:
       - leads-network
     volumes:
       - loki_data:/loki
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   redis-exporter:
     image: oliver006/redis_exporter
@@ -264,17 +386,31 @@ services:
       REDIS_ADDR: redis:6379
     networks:
       - leads-network
-  
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
+
   rabbitmq-exporter:
-      image: kbudde/rabbitmq-exporter
-      ports:
-        - "9419:9419"
-      environment:
-        RABBIT_URL: http://rabbitmq:15672
-        RABBIT_USER: guest
-        RABBIT_PASSWORD: guest
-      networks:
-        - leads-network
+    image: kbudde/rabbitmq-exporter
+    ports:
+      - "9419:9419"
+    environment:
+      RABBIT_URL: http://rabbitmq:15672
+      RABBIT_USER: guest
+      RABBIT_PASSWORD: guest
+    networks:
+      - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
 networks:
   leads-network:
