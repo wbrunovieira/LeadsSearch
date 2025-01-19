@@ -18,7 +18,7 @@ def setup_rabbitmq():
     rabbitmq_host = os.getenv('RABBITMQ_HOST', 'rabbitmq')
     rabbitmq_port = int(os.getenv('RABBITMQ_PORT', 5672))
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host=rabbitmq_host, port=rabbitmq_port)
+        pika.ConnectionParameters(host=rabbitmq_host, port=rabbitmq_port,heartbeat=60)
     )
     return connection
 
@@ -81,7 +81,7 @@ async def fetch_data_from_api(api_key, url):
     encoded_url = quote(url)
     api_url = f"https://cheap-web-scarping-api.p.rapidapi.com/scrape?url={encoded_url}"
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         async with session.get(api_url, headers=headers) as response:
             print(f"[LOG] Status da resposta: {response.status}")
             if response.status == 200:
@@ -169,6 +169,10 @@ async def parse_company_data(html_data, google_id, search_city):
     """Analisa os dados HTML retornados pela API e extrai as informações de todas as empresas."""
     try:
         
+        if not html_data:
+            print("[LOG] HTML vazio, parsing não pode ser realizado.")
+            return []
+        
         if html_data is not None:
             soup = BeautifulSoup(html_data, 'html.parser')
             li_tags = soup.find_all('li')
@@ -179,7 +183,15 @@ async def parse_company_data(html_data, google_id, search_city):
             for li_tag in li_tags:
                 company_name_tag = li_tag.find('p', class_=re.compile(r'text-lg'))
                 company_name = company_name_tag.get_text(strip=True) if company_name_tag else None
+                company_city = None
 
+                if not company_name or not company_city:
+                  print(f"[LOG] Nome ou cidade inválidos durante o parsing: Nome={company_name}, Cidade={company_city}")
+                  continue
+
+
+
+                company_name
                 company_status = None
                 if "ATIVA" in li_tag.get_text():
                     company_status = "ATIVA"
@@ -268,6 +280,14 @@ async def handle_lead_data(lead_data):
     name = lead_data.get('Name')
     city = lead_data.get('City')
     google_id = lead_data.get('PlaceID')
+
+
+
+    if not name or not city:
+        print(f"[LOG] Nome ou cidade inválidos: Nome={name}, Cidade={city}")
+        return  # Para o processamento imediatamente
+
+    
     print(f"entrou no handle_lead_data com os dados:{name} {city} {google_id}")
 
     if name and city:
