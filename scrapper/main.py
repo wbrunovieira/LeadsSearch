@@ -375,7 +375,7 @@ async def handle_lead_data(lead_data):
     print(f"[LOG] Iniciando processamento do lead: Nome={name}, Cidade={city}")
 
     try:
-        # Passo 1: Busca CNPJs na API Serper
+
         serper_result = await fetch_serper_data_for_cnpj(name, city)
         if not serper_result:
             print(f"[LOG] Nenhum resultado da API Serper para {name}, {city}")
@@ -384,19 +384,19 @@ async def handle_lead_data(lead_data):
         cnpjs = serper_result.get("captured_cnpjs", [])
         print(f"[LOG] CNPJs capturados para consulta: {cnpjs}")
 
-        # Remove duplicados e normaliza o formato dos CNPJs
+
         cnpjs_normalized = list(set([cnpj.replace('.', '').replace('/', '').replace('-', '') for cnpj in cnpjs]))
         print(f"[LOG] CNPJs normalizados: {cnpjs_normalized}")
 
         cnpj_data_list = []
 
-        # Passo 2: Consulta cada CNPJ na API Invertexto
+
         for cnpj in cnpjs_normalized:
             cnpj_data = await fetch_cnpj_data(cnpj, delay=1.2)  # Inclui delay para evitar erros de limite
             if cnpj_data:
                 cnpj_data_list.append(cnpj_data)
 
-        # Passo 3: Combina os dados e envia para RabbitMQ
+
         combined_data = {
             "serper_info": serper_result,
             "cnpj_data": cnpj_data_list
