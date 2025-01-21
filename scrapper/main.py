@@ -101,26 +101,44 @@ async def fetch_serper_data_for_cnpj(name, city):
 
     try:
         response_data = json.loads(data.decode("utf-8"))
-        results = response_data.get("organic", [])  # "organic" contém os resultados principais
+        results = response_data.get("organic", [])  
 
         serper_info = []
-        cnpj_list = []  # Lista para capturar todos os CNPJs encontrados
+        cnpj_list = []  
 
         for idx, result in enumerate(results):
             title = result.get("title", "")
             snippet = result.get("snippet", "")
             link = result.get("link", "")
 
-            # Captura CNPJs
+            
             cnpj_in_title = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', title)
             cnpj_in_snippet = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', snippet)
             cnpj_in_link = re.findall(r'\b\d{14}\b', link)
 
-            # Normaliza e adiciona à lista
+            
             found_cnpjs = list(set(normalize_cnpj(cnpj) for cnpj in cnpj_in_title + cnpj_in_snippet + cnpj_in_link if normalize_cnpj(cnpj)))
-            cnpj_list.extend(found_cnpjs)
+            
+            for cnpj in found_cnpjs:
+                # Consulta os dados do CNPJ usando a API Invertexto
+                cnpj_data = await fetch_cnpj_data(cnpj)
+                if not cnpj_data:
+                    continue
 
-            # Adiciona informações relevantes do resultado
+                # Comparar cidade, endereço ou nome fantasia
+                cnpj_city = cnpj_data.get("endereco", {}).get("municipio", "").lower()
+                cnpj_name = cnpj_data.get("nome_fantasia", "").lower() if cnpj_data.get("nome_fantasia") else ""
+                cnpj_status = cnpj_data.get("situacao", {}).get("nome", "").lower()
+
+                # Validação com os critérios informados
+                if (city.lower() == cnpj_city and 
+                    (name.lower() in cnpj_name or cnpj_status == "ativa")):
+                    print(f"[LOG] CNPJ encontrado para a empresa {name}: {cnpj}")
+                    return cnpj  # Retorna o CNPJ da empresa
+            
+        
+
+            
             serper_info.append({
                 "title": title,
                 "link": link,
@@ -141,8 +159,6 @@ async def fetch_serper_data_for_cnpj(name, city):
         return None
     
 
-import re
-import asyncio
 
 async def fetch_cnpj_data(cnpj, delay=1.2):
     """
@@ -150,21 +166,21 @@ async def fetch_cnpj_data(cnpj, delay=1.2):
     Inclui um delay para respeitar o limite de requisições da API.
     """
     try:
-        # Remove formatação do CNPJ (pontos, barras, hífens)
+        
         clean_cnpj = re.sub(r'\D', '', cnpj)
         print(f"[LOG] CNPJ formatado para consulta: {clean_cnpj}")
 
-        # Carrega o token da API
+
         api_token = os.getenv('INVERTEXTO_API_TOKEN')
         if not api_token:
             print("[LOG] API key INVERTEXTO_API_TOKEN não encontrada. Verifique as configurações.")
             return None
 
-        # Monta a URL da API
+
         api_url = f"https://api.invertexto.com/v1/cnpj/{clean_cnpj}?token={api_token}"
         print(f"[LOG] URL de consulta para o CNPJ: {api_url}")
 
-        # Inicia a requisição assíncrona
+
         async with aiohttp.ClientSession() as session:
             async with session.get(api_url) as response:
                 print(f"[LOG] Status HTTP da resposta: {response.status}")
@@ -182,7 +198,7 @@ async def fetch_cnpj_data(cnpj, delay=1.2):
                     print(f"[LOG] Erro ao consultar CNPJ {clean_cnpj}: {response.status} - {error_message}")
                     return None
 
-        # Adiciona o delay antes da próxima requisição
+
         await asyncio.sleep(delay)
 
     except Exception as e:
@@ -392,7 +408,7 @@ async def handle_lead_data(lead_data):
 
 
         for cnpj in cnpjs_normalized:
-            cnpj_data = await fetch_cnpj_data(cnpj, delay=1.2)  # Inclui delay para evitar erros de limite
+            cnpj_data = await fetch_cnpj_data(cnpj, delay=1.2)  
             if cnpj_data:
                 cnpj_data_list.append(cnpj_data)
 
@@ -407,6 +423,7 @@ async def handle_lead_data(lead_data):
 
     except Exception as e:
         print(f"[LOG] Erro ao processar os dados do lead: {e}")
+
 def main():
     """Função principal para iniciar o serviço de scraping de leads."""
     connection = setup_rabbitmq()
