@@ -277,6 +277,15 @@ func (s *Service) SearchPlaces(query string, location string, radius int, maxPag
 				}
 				allPlaces = append(allPlaces, placeDetails)
 				leadsExtracted++
+
+				if len(allPlaces) >= 1 {
+					log.Println("Apenas uma empresa foi obtida. Interrompendo a busca.")
+					break
+				}
+			}
+
+			if len(allPlaces) >= 1 || result.NextPageToken == "" || pagesFetched >= maxPages {
+				break
 			}
 
 			pagesFetched++

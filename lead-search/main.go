@@ -199,6 +199,7 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 		return
 	}
 	radius := r.URL.Query().Get("radius")
+	maxResultsStr := r.URL.Query().Get("max_results")
 
 	if categoryID == "" || radius == "" {
 		totalErrors.WithLabelValues("/start-search", "missing_params").Inc()
@@ -220,7 +221,17 @@ func startSearchHandler(w http.ResponseWriter, r *http.Request, db *sql.DB, ch *
 		return
 	}
 
-	err = startSearch(categoryID, zipcodeID, radiusInt, db, ch)
+	maxResults := 1
+	if maxResultsStr != "" {
+		maxResults, err = strconv.Atoi(maxResultsStr)
+		if err != nil {
+			totalErrors.WithLabelValues("/start-search", "invalid_max_results").Inc()
+			http.Error(w, "Invalid max_results value", http.StatusBadRequest)
+			return
+		}
+	}
+
+	err = startSearch(categoryID, zipcodeID, radiusInt, maxResults, db, ch)
 	if err != nil {
 		totalErrors.WithLabelValues("/start-search", "search_failed").Inc()
 		http.Error(w, fmt.Sprintf("Failed to start search: %v", err), http.StatusInternalServerError)
@@ -364,12 +375,13 @@ func updateSearchProgress(db *sql.DB, progressID int, pagesFetched int, leadsExt
 	return nil
 }
 
-func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *amqp.Channel) error {
+func startSearch(categoryID string, zipcodeID int, radius int, maxResults int, db *sql.DB, ch *amqp.Channel) error {
 
-	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius)
+	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d, maxResults: %d", categoryID, zipcodeID, radius, maxResults)
 	startTime := time.Now()
+	totalLeadsExtracted := 0
 	startSearchRequests.WithLabelValues(categoryID, "started").Inc()
-	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius)
+	log.Printf("Iniciando pesquisa com categoryID: %s, zipcodeID: %d, radius: %d", categoryID, zipcodeID, radius, maxResults)
 	totalRequests.WithLabelValues("startSearch", "internal").Inc()
 
 	apiKey := os.Getenv("GOOGLE_PLACES_API_KEY")
@@ -446,7 +458,7 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 	log.Println("Iniciando busca no Google Places...")
 	totalLeads := 0
 	maxPages := 1
-	totalLeadsExtracted := 0
+	totalLeadsExtracted = 0
 	for currentPage := 1; currentPage <= maxPages; currentPage++ {
 		log.Printf("Buscando página %d para a categoria %s na cidade %s", currentPage, categoryName, cityName)
 
@@ -477,6 +489,11 @@ func startSearch(categoryID string, zipcodeID int, radius int, db *sql.DB, ch *a
 			}
 
 			totalLeadsExtracted++
+		}
+
+		if totalLeadsExtracted >= maxResults {
+			log.Printf("Limite de resultados atingido após processar a página: %d", maxResults)
+			break
 		}
 
 		log.Printf("Progresso da busca: página %d completada, %d leads extraídos", currentPage, totalLeadsExtracted)
