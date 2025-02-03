@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/joho/godotenv"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -41,6 +43,11 @@ var temporaryErrors = []error{
 
 func main() {
 	log.Println("Starting API service...")
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Erro ao carregar .env:", err)
+	}
 
 	// Conectar ao RabbitMQ
 	conn, err := connectToRabbitMQ()
@@ -182,46 +189,59 @@ func consumeGooglePlacesLeads(ch *amqp.Channel) {
 }
 
 func hasWhatsApp(phone string) (bool, error) {
-	url := "http://validator-service:8090/check_whatsapp"
-	client := &http.Client{}
+	// Ler a API Key do .env
+	apiKey := os.Getenv("WHATSAPP_API_KEY")
+	if apiKey == "" {
+		log.Fatal("Erro: API Key não encontrada nas variáveis de ambiente")
+	} else {
+		log.Println("API Key carregada com sucesso!")
+	}
 
-	payload := fmt.Sprintf(`["%s"]`, phone)
-	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
+	// Montar a URL e o payload da requisição
+	url := fmt.Sprintf("https://whatsapp-api.wbdigitalsolutions.com/chat/whatsappNumbers/%s", os.Getenv("WHATSAPP_API_USER"))
+	payload, _ := json.Marshal(map[string][]string{"numbers": {phone}})
+
+	// Criar a requisição HTTP
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return false, err
 	}
-	headers := map[string]string{
-		"Content-Type": "application/json",
-	}
-	for k, v := range headers {
-		request.Header.Set(k, v)
-	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("apikey", apiKey)
 
+	// Enviar a requisição
+	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
 		return false, err
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("Erro na requisição para verificar WhatsApp: %s", response.Status)
-	}
-
+	// Ler a resposta
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return false, err
 	}
 
+	// Verificar o status da resposta
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Erro na requisição: %s", response.Status)
+	}
+
+	// Parse do JSON de resposta
 	var result []map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return false, err
 	}
 
-	if len(result) > 0 && result[0]["has_whatsapp"].(bool) {
-		return true, nil
+	// Validar se o número tem WhatsApp
+	if len(result) > 0 {
+		if exists, ok := result[0]["exists"].(bool); ok {
+			return exists, nil
+		}
 	}
 
-	return false, nil
+	return false, fmt.Errorf("Resposta inesperada da API")
 }
 
 func validateEmail(email string) (bool, error) {
@@ -536,18 +556,22 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 }
 
 func saveLeadToDatabase(data map[string]interface{}) error {
+	log.Println("Iniciando processamento do lead...")
 	lead := db.Lead{}
 
 	if lead.ID == uuid.Nil {
 		lead.ID = uuid.New()
+		log.Printf("Gerado novo UUID para lead: %s", lead.ID)
 	}
 
 	if v, ok := data["Name"].(string); ok {
 		lead.BusinessName = v
+		log.Printf("Nome do negócio: %s", lead.BusinessName)
 	}
 
 	if v, ok := data["FormattedAddress"].(string); ok {
 		lead.Address = v
+		log.Printf("Endereço formatado: %s", lead.Address)
 		if lead.Address == "" {
 			log.Printf("Aviso: Endereço vazio para o PlaceID %s", data["PlaceID"])
 		}
@@ -555,34 +579,43 @@ func saveLeadToDatabase(data map[string]interface{}) error {
 
 	if v, ok := data["City"].(string); ok {
 		lead.City = v
+		log.Printf("Cidade: %s", lead.City)
 	}
 	if v, ok := data["State"].(string); ok {
 		lead.State = v
+		log.Printf("Estado: %s", lead.State)
 	}
 	if v, ok := data["ZIPCode"].(string); ok {
 		lead.ZIPCode = v
+		log.Printf("CEP: %s", lead.ZIPCode)
 	}
 
 	if v, ok := data["Country"].(string); ok {
 		lead.Country = v
-
+		log.Printf("País: %s", lead.Country)
 	}
+
 	if v, ok := data["InternationalPhoneNumber"].(string); ok {
+		log.Printf("Verificando WhatsApp para o telefone: %s", v)
 		hasWhatsapp, err := hasWhatsApp(v)
 		if err != nil {
 			log.Printf("Erro ao verificar WhatsApp: %v", err)
 		} else if hasWhatsapp {
 			lead.Whatsapp = v
+			log.Println("WhatsApp confirmado e salvo.", lead.Whatsapp)
 		}
 		lead.Phone = v
 	}
+	log.Printf("Lead preparado para salvar - Nome: %s, Phone: %s, WhatsApp: %s", lead.BusinessName, lead.Phone, lead.Whatsapp)
 
 	if v, ok := data["Email"].(string); ok {
+		log.Printf("Validando email: %s", v)
 		isValidEmail, err := validateEmail(v)
 		if err != nil {
 			log.Printf("Erro ao validar email: %v", err)
 		} else if isValidEmail {
 			lead.Email = v
+			log.Println("Email válido salvo.")
 		} else {
 			log.Printf("Email inválido, não será salvo: %s", v)
 		}
@@ -590,42 +623,50 @@ func saveLeadToDatabase(data map[string]interface{}) error {
 
 	if v, ok := data["Website"].(string); ok {
 		lead.Website = v
-
+		log.Printf("Website: %s", lead.Website)
 		if strings.HasPrefix(lead.Website, "https://www.instagram.com") {
 			lead.Instagram = lead.Website
 			lead.Website = ""
+			log.Println("Detectado Instagram, atualizado corretamente.")
 		}
 		if strings.HasPrefix(lead.Website, "https://www.facebook.com.com") {
 			lead.Facebook = lead.Website
 			lead.Website = ""
+			log.Println("Detectado Facebook, atualizado corretamente.")
 		}
 	}
 
 	if v, ok := data["Description"].(string); ok {
 		if lead.Description != "" {
-
 			lead.Description = fmt.Sprintf("%s\n%s", lead.Description, v)
 		} else {
 			lead.Description = v
 		}
+		log.Println("Descrição atualizada.")
 	}
+
 	if v, ok := data["Rating"].(float64); ok {
 		lead.Rating = v
+		log.Printf("Avaliação: %.2f", lead.Rating)
 	}
 	if v, ok := data["UserRatingsTotal"].(float64); ok {
 		lead.UserRatingsTotal = int(v)
+		log.Printf("Total de avaliações: %d", lead.UserRatingsTotal)
 	}
 	if v, ok := data["PriceLevel"].(float64); ok {
 		lead.PriceLevel = int(v)
+		log.Printf("Nível de preço: %d", lead.PriceLevel)
 	}
 	if v, ok := data["BusinessStatus"].(string); ok {
 		lead.BusinessStatus = v
+		log.Printf("Status do negócio: %s", lead.BusinessStatus)
 	}
 	if v, ok := data["Vicinity"].(string); ok {
 		lead.Vicinity = v
 	}
 	if v, ok := data["PermanentlyClosed"].(bool); ok {
 		lead.PermanentlyClosed = v
+		log.Printf("Fechado permanentemente: %v", lead.PermanentlyClosed)
 	}
 	if v, ok := data["Types"].([]interface{}); ok {
 		var types []string
@@ -635,29 +676,35 @@ func saveLeadToDatabase(data map[string]interface{}) error {
 			}
 		}
 		lead.Categories = strings.Join(types, ", ")
+		log.Printf("Categorias: %s", lead.Categories)
 	}
 
 	if category, ok := data["Category"].(string); ok {
 		if city, ok := data["City"].(string); ok {
 			radius := data["Radius"]
 			lead.SearchTerm = fmt.Sprintf("%s, %s, %v", category, city, radius)
+			log.Printf("Termo de busca salvo: %s", lead.SearchTerm)
 		}
 	}
+
 	if v, ok := data["PlaceID"].(string); ok {
 		lead.GoogleId = v
+		log.Printf("Google ID: %s", lead.GoogleId)
 	}
 
 	lead.Source = "GooglePlaces"
-
+	log.Println("Tentando salvar lead no banco de dados...")
 	err := db.CreateLead(&lead)
 	if err != nil {
+		log.Printf("Erro ao salvar lead no banco de dados: %v", err)
 		return fmt.Errorf("Failed to save lead to database: %v", err)
 	}
+	log.Printf("Lead salvo no banco de dados: %v", lead)
 
-	log.Printf("Lead saved to database: %v", lead)
-
+	log.Println("Tentando salvar lead no Redis...")
 	err = SaveLeadToRedis(lead.GoogleId, lead.ID)
 	if err != nil {
+		log.Printf("Erro ao salvar lead no Redis: %v", err)
 		return fmt.Errorf("Failed to save lead to Redis: %v", err)
 	}
 

@@ -236,6 +236,8 @@ services:
   # Serviços de API e Inteligência Artificial
   api:
     build: ./api
+    env_file:
+      - ./api/.env
     ports:
       - "8085:8085"
     environment:
