@@ -40,25 +40,36 @@ var temporaryErrors = []error{
 }
 
 func main() {
-
 	log.Println("Starting API service...")
 
+	// Conectar ao RabbitMQ
 	conn, err := connectToRabbitMQ()
 	if err != nil {
 		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
 	}
-	defer closeRabbitMQ()
+	defer conn.Close()
 
-	rabbitChannel, err := setupChannel(conn)
+	// Cria canais separados para cada consumidor
+	leadsChannel, err := setupChannel(conn)
 	if err != nil {
-		log.Fatalf("Erro ao configurar o canal: %v", err)
+		log.Fatalf("Erro ao configurar canal para leads: %v", err)
 	}
+	companiesChannel, err := setupChannel(conn)
+	if err != nil {
+		log.Fatalf("Erro ao configurar canal para companies: %v", err)
+	}
+	googlePlacesChannel, err := setupChannel(conn)
+	if err != nil {
+		log.Fatalf("Erro ao configurar canal para Google Places: %v", err)
+	}
+	defer leadsChannel.Close()
+	defer companiesChannel.Close()
+	defer googlePlacesChannel.Close()
 
 	log.Println("Conectando ao Redis...")
 	if err := ConnectToRedis(); err != nil {
 		log.Fatalf("Erro ao conectar ao Redis: %v", err)
 	}
-
 	if redisClient == nil {
 		log.Fatalf("Falha ao conectar ao Redis.")
 	}
@@ -74,24 +85,100 @@ func main() {
 	}
 
 	log.Println("Starting to consume leads from RabbitMQ...")
-	go consumeLeadsFromRabbitMQ(rabbitChannel)
+	go consumeLeadsFromRabbitMQ(leadsChannel)
 
 	log.Println("Starting to consume companies from RabbitMQ...")
-	go consumeCompaniesFromRabbitMQ(rabbitChannel)
+	go consumeCompaniesFromRabbitMQ(companiesChannel)
+
+	log.Println("Starting to consume Google Places leads from RabbitMQ...")
+	go consumeGooglePlacesLeads(googlePlacesChannel)
 
 	http.HandleFunc("/leads", leadHandler)
 
 	port := os.Getenv("PORT")
-
-	fmt.Println("API rodando na porta", port)
 	if port == "" {
 		log.Fatal("PORT não definido no ambiente")
-	} else {
-		fmt.Println("API rodando na porta", port)
 	}
+	fmt.Println("API rodando na porta", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
 
-	select {}
+func consumeGooglePlacesLeads(ch *amqp.Channel) {
+	queueName := "leads_exchange"
+
+	err := ch.ExchangeDeclare(
+		queueName, // Exchange de onde as mensagens vêm
+		"fanout",  // Tipo de exchange
+		true,      // Durável
+		false,     // Auto-delete
+		false,     // Interno
+		false,     // No-wait
+		nil,       // Argumentos adicionais
+	)
+	if err != nil {
+		log.Fatalf("Erro ao declarar exchange: %v", err)
+	}
+
+	q, err := ch.QueueDeclare(
+		"",
+		false, // Não persistente
+		false, // Auto-delete
+		true,  // Exclusivo para esta conexão
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("Erro ao declarar fila: %v", err)
+	}
+
+	err = ch.QueueBind(
+		q.Name,
+		"",
+		queueName,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("Erro ao associar fila ao exchange: %v", err)
+	}
+
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		false, // Manual ACK
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("Erro ao registrar consumidor: %v", err)
+	}
+
+	log.Println("Consumindo leads do Google Places...")
+
+	go func() {
+		for d := range msgs {
+			log.Printf("Lead recebido do Google Places: %s", string(d.Body))
+
+			var leadData map[string]interface{}
+			if err := json.Unmarshal(d.Body, &leadData); err != nil {
+				log.Printf("Erro ao decodificar JSON: %v", err)
+				d.Nack(false, true) // Reenviar a mensagem para a fila
+				continue
+			}
+
+			err := saveLeadToDatabase(leadData)
+			if err != nil {
+				log.Printf("Erro ao salvar lead no banco de dados: %v", err)
+				d.Nack(false, false) // Descartar a mensagem
+				continue
+			}
+
+			d.Ack(false) // Confirmação de processamento bem-sucedido
+			log.Println("Lead do Google Places salvo com sucesso!")
+		}
+	}()
 }
 
 func hasWhatsApp(phone string) (bool, error) {
@@ -987,25 +1074,33 @@ func closeRabbitMQ() {
 }
 
 func setupChannel(connection *amqp.Connection) (*amqp.Channel, error) {
+	if connection == nil {
+		return nil, fmt.Errorf("Conexão com RabbitMQ não inicializada")
+	}
+
 	channel, err := connection.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("Erro ao abrir canal: %v", err)
 	}
 
-	exchangeName := "scrapper_exchange"
-	err = channel.ExchangeDeclare(
-		exchangeName,
-		"fanout", // Tipo de exchange
-		true,     // Durable
-		false,    // Auto-delete
-		false,    // Internal
-		false,    // No-wait
-		nil,      // Arguments
-	)
-	if err != nil {
-		return nil, fmt.Errorf("Erro ao declarar exchange: %v", err)
+	// Lista de exchanges a serem declaradas
+	exchanges := []string{"scrapper_exchange", "leads_exchange"}
+
+	for _, exchangeName := range exchanges {
+		err = channel.ExchangeDeclare(
+			exchangeName,
+			"fanout", // Tipo de exchange
+			true,     // Durável
+			false,    // Auto-delete
+			false,    // Interno
+			false,    // No-wait
+			nil,      // Arguments
+		)
+		if err != nil {
+			return nil, fmt.Errorf("Erro ao declarar exchange %s: %v", exchangeName, err)
+		}
+		log.Printf("Exchange %s declarada com sucesso!", exchangeName)
 	}
 
-	log.Printf("Exchange %s declarada com sucesso", exchangeName)
 	return channel, nil
 }

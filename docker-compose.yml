@@ -91,147 +91,147 @@ services:
         tag: "{{.Name}}/{{.ID}}"
         labels: "service={{.Name}}"
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.9.2
-    ports:
-      - "5601:5601"
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    depends_on:
-      - elasticsearch
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:7.9.2
+  #   ports:
+  #     - "5601:5601"
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+  #   depends_on:
+  #     - elasticsearch
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
   # Serviços de Armazenamento e Processamento de Dados
-  datalake:
-    build: ./datalake
-    restart: always
-    environment:
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    ports:
-      - "8087:8087"
-    command: python main.py
+  # datalake:
+  #   build: ./datalake
+  #   restart: always
+  #   environment:
+  #     - ELASTICSEARCH_HOST=elasticsearch
+  #     - ELASTICSEARCH_PORT=9200
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #   ports:
+  #     - "8087:8087"
+  #   command: python main.py
 
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     elasticsearch:
+  #       condition: service_healthy
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  data-processor:
-    build: ./data-processor
-    ports:
-      - "8081:8081"
-    environment:
-      - PORT=8081
-    depends_on:
-      - db
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # data-processor:
+  #   build: ./data-processor
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     - PORT=8081
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
   # Serviços de Scraping e Fetching
-  scrapper:
-    build: ./scrapper
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # scrapper:
+  #   build: ./scrapper
+  #   environment:
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  link-fetcher:
-    build: ./link-fetcher
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # link-fetcher:
+  #   build: ./link-fetcher
+  #   environment:
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  website-fetcher:
-    build: ./website-fetcher
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # website-fetcher:
+  #   build: ./website-fetcher
+  #   environment:
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  validator-service:
-    build: ./validator-service
-    ports:
-      - "8090:8090"
-    environment:
-      - PORT=8090
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # validator-service:
+  #   build: ./validator-service
+  #   ports:
+  #     - "8090:8090"
+  #   environment:
+  #     - PORT=8090
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
   # Serviços de API e Inteligência Artificial
   api:
@@ -290,127 +290,127 @@ services:
         tag: "{{.Name}}/{{.ID}}"
         labels: "service={{.Name}}"
 
-  ai:
-    build: ./ai_service
-    volumes:
-      - ./ai:/app/src
-    depends_on:
-      - db
-    command: ["python", "main.py"]
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # ai:
+  #   build: ./ai_service
+  #   volumes:
+  #     - ./ai:/app/src
+  #   depends_on:
+  #     - db
+  #   command: ["python", "main.py"]
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  grafana:
-    image: grafana/grafana:9.4.3
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
-      - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
-    depends_on:
-      loki:
-        condition: service_started
-    networks:
-      - leads-network
-    volumes:
-      - grafana_data:/var/lib/grafana
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # grafana:
+  #   image: grafana/grafana:9.4.3
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin123
+  #     - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
+  #   depends_on:
+  #     loki:
+  #       condition: service_started
+  #   networks:
+  #     - leads-network
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  promtail:
-    image: grafana/promtail:2.7.1
-    networks:
-      - leads-network
-    volumes:
-      - /var/log:/var/log
-      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # promtail:
+  #   image: grafana/promtail:2.7.1
+  #   networks:
+  #     - leads-network
+  #   volumes:
+  #     - /var/log:/var/log
+  #     - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+  #   command: -config.file=/etc/promtail/config.yml
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  loki:
-    image: grafana/loki:2.7.1
-    ports:
-      - "3100:3100"
-    networks:
-      - leads-network
-    volumes:
-      - loki_data:/loki
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # loki:
+  #   image: grafana/loki:2.7.1
+  #   ports:
+  #     - "3100:3100"
+  #   networks:
+  #     - leads-network
+  #   volumes:
+  #     - loki_data:/loki
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  redis-exporter:
-    image: oliver006/redis_exporter
-    ports:
-      - "9121:9121"
-    environment:
-      REDIS_ADDR: redis:6379
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # redis-exporter:
+  #   image: oliver006/redis_exporter
+  #   ports:
+  #     - "9121:9121"
+  #   environment:
+  #     REDIS_ADDR: redis:6379
+  #   networks:
+  #     - leads-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+  #       tag: "{{.Name}}/{{.ID}}"
+  #       labels: "service={{.Name}}"
 
-  rabbitmq-exporter:
-    image: kbudde/rabbitmq-exporter
-    ports:
-      - "9419:9419"
-    environment:
-      RABBIT_URL: http://rabbitmq:15672
-      RABBIT_USER: guest
-      RABBIT_PASSWORD: guest
-    networks:
-      - leads-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        tag: "{{.Name}}/{{.ID}}"
-        labels: "service={{.Name}}"
+  # rabbitmq-exporter:
+  #   image: kbudde/rabbitmq-exporter
+  #   ports:
+    #   - "9419:9419"
+    # environment:
+    #   RABBIT_URL: http://rabbitmq:15672
+    #   RABBIT_USER: guest
+    #   RABBIT_PASSWORD: guest
+    # networks:
+    #   - leads-network
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m"
+    #     max-file: "3"
+    #     tag: "{{.Name}}/{{.ID}}"
+    #     labels: "service={{.Name}}"
 
 networks:
   leads-network:
@@ -420,5 +420,5 @@ volumes:
   postgres_data:
   redis_data:
   elasticsearch_data:
-  loki_data:
-  grafana_data:
+  # loki_data:
+  # grafana_data:
