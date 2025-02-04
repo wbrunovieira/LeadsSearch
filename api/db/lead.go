@@ -62,6 +62,7 @@ type Lead struct {
 
 func CreateLead(lead *Lead) error {
 	var existingLead Lead
+
 	result := DB.Where("google_id = ?", lead.GoogleId).First(&existingLead)
 	if result.Error == nil {
 		return fmt.Errorf("Lead com GoogleId %s já existe", lead.GoogleId)

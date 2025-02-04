@@ -4,7 +4,7 @@ import (
 	"api/db"
 	"bytes"
 	"database/sql"
-	"io/ioutil"
+
 	"regexp"
 	"strconv"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"io"
 	"net/http"
 	"os"
 
@@ -49,14 +50,12 @@ func main() {
 		log.Fatal("Erro ao carregar .env:", err)
 	}
 
-	// Conectar ao RabbitMQ
 	conn, err := connectToRabbitMQ()
 	if err != nil {
 		log.Fatalf("Erro ao conectar ao RabbitMQ: %v", err)
 	}
 	defer conn.Close()
 
-	// Cria canais separados para cada consumidor
 	leadsChannel, err := setupChannel(conn)
 	if err != nil {
 		log.Fatalf("Erro ao configurar canal para leads: %v", err)
@@ -189,7 +188,7 @@ func consumeGooglePlacesLeads(ch *amqp.Channel) {
 }
 
 func hasWhatsApp(phone string) (bool, error) {
-	// Ler a API Key do .env
+
 	apiKey := os.Getenv("WHATSAPP_API_KEY")
 	if apiKey == "" {
 		log.Fatal("Erro: API Key não encontrada nas variáveis de ambiente")
@@ -197,11 +196,9 @@ func hasWhatsApp(phone string) (bool, error) {
 		log.Println("API Key carregada com sucesso!")
 	}
 
-	// Montar a URL e o payload da requisição
 	url := fmt.Sprintf("https://whatsapp-api.wbdigitalsolutions.com/chat/whatsappNumbers/%s", os.Getenv("WHATSAPP_API_USER"))
 	payload, _ := json.Marshal(map[string][]string{"numbers": {phone}})
 
-	// Criar a requisição HTTP
 	request, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return false, err
@@ -209,7 +206,6 @@ func hasWhatsApp(phone string) (bool, error) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("apikey", apiKey)
 
-	// Enviar a requisição
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
@@ -217,24 +213,20 @@ func hasWhatsApp(phone string) (bool, error) {
 	}
 	defer response.Body.Close()
 
-	// Ler a resposta
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return false, err
 	}
 
-	// Verificar o status da resposta
 	if response.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("Erro na requisição: %s", response.Status)
 	}
 
-	// Parse do JSON de resposta
 	var result []map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return false, err
 	}
 
-	// Validar se o número tem WhatsApp
 	if len(result) > 0 {
 		if exists, ok := result[0]["exists"].(bool); ok {
 			return exists, nil
@@ -269,7 +261,7 @@ func validateEmail(email string) (bool, error) {
 	if response.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("Erro ao validar o email: %s", response.Status)
 	}
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return false, err
 	}
