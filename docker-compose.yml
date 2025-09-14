@@ -1,7 +1,7 @@
 services:
   # Serviços Fundamentais
   rabbitmq:
-    image: "rabbitmq:3-management"
+    image: "rabbitmq:3.12-management"
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -110,34 +110,34 @@ services:
   #       labels: "service={{.Name}}"
 
   # Serviços de Armazenamento e Processamento de Dados
-  # datalake:
-  #   build: ./datalake
-  #   restart: always
-  #   environment:
-  #     - ELASTICSEARCH_HOST=elasticsearch
-  #     - ELASTICSEARCH_PORT=9200
-  #     - RABBITMQ_HOST=rabbitmq
-  #     - RABBITMQ_PORT=5672
-  #     - REDIS_HOST=redis
-  #     - REDIS_PORT=6379
-  #   ports:
-  #     - "8087:8087"
-  #   command: python main.py
+  datalake:
+    build: ./datalake
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "8087:8087"
+    command: python main.py
 
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #     elasticsearch:
-  #       condition: service_healthy
-  #   networks:
-  #     - leads-network
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
-  #       tag: "{{.Name}}/{{.ID}}"
-  #       labels: "service={{.Name}}"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   # data-processor:
   #   build: ./data-processor
@@ -158,28 +158,28 @@ services:
   #       labels: "service={{.Name}}"
 
   # Serviços de Scraping e Fetching
-  # scrapper:
-  #   build: ./scrapper
-  #   environment:
-  #     - RABBITMQ_HOST=rabbitmq
-  #     - RABBITMQ_PORT=5672
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - leads-network
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
-  #       tag: "{{.Name}}/{{.ID}}"
-  #       labels: "service={{.Name}}"
+  scrapper:
+    build: ./scrapper
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://rabbitmq:15672"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leads-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}/{{.ID}}"
+        labels: "service={{.Name}}"
 
   # link-fetcher:
   #   build: ./link-fetcher
@@ -272,8 +272,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
     volumes:
-      - /home/wbruno/projects/LeadsSearch/lead-search/data/geo.db:/usr/src/app/data/geo.db
-      - /home/wbruno/projects/LeadsSearch/lead-search:/app/lead-search
+      - ./lead-search/data/geo.db:/usr/src/app/data/geo.db
+      - ./lead-search:/app/lead-search
     depends_on:
       rabbitmq:
         condition: service_healthy

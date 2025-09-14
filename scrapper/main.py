@@ -36,7 +36,8 @@ def setup_channel(connection):
 
     queue_name = 'scrapper_queue'
     channel.queue_declare(queue=queue_name, durable=True)
-    channel.queue_bind(exchange=exchange_name, queue=queue_name)
+    # Scrapper deve receber mensagens apenas do scrapper_exchange (da API)
+    channel.queue_bind(exchange=scrapper_exchange_name, queue=queue_name)
 
     confirmation_queue_name = 'scrapper_confirmation_queue'
     channel.queue_declare(queue=confirmation_queue_name, durable=True)
@@ -101,40 +102,123 @@ async def fetch_serper_data_for_cnpj(name, city):
 
     try:
         response_data = json.loads(data.decode("utf-8"))
-        results = response_data.get("organic", [])  
+        results = response_data.get("organic", [])
 
         serper_info = []
-        cnpj_list = []  
+        cnpj_candidates = []  # Lista de candidatos com score
+
+        # Palavras-chave de marketplaces e agregadores que devemos ignorar
+        excluded_keywords = ['ifood', 'mercado livre', 'mercadolivre', 'ebazar',
+                           'uber eats', 'rappi', 'aiqfome', '99food', 'zé delivery']
 
         for idx, result in enumerate(results):
-            title = result.get("title", "")
-            snippet = result.get("snippet", "")
-            link = result.get("link", "")
+            title = result.get("title", "").lower()
+            snippet = result.get("snippet", "").lower()
+            link = result.get("link", "").lower()
 
-            
-            cnpj_in_title = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', title)
-            cnpj_in_snippet = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', snippet)
-            cnpj_in_link = re.findall(r'\b\d{14}\b', link)
+            # Pular resultados de marketplaces
+            if any(keyword in title + snippet + link for keyword in excluded_keywords):
+                print(f"[LOG] Ignorando resultado de marketplace: {title[:50]}...")
+                continue
 
-            
+            # Extrair CNPJs
+            cnpj_in_title = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', result.get("title", ""))
+            cnpj_in_snippet = re.findall(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b', result.get("snippet", ""))
+            cnpj_in_link = re.findall(r'\b\d{14}\b', result.get("link", ""))
+
             found_cnpjs = list(set(normalize_cnpj(cnpj) for cnpj in cnpj_in_title + cnpj_in_snippet + cnpj_in_link if normalize_cnpj(cnpj)))
-            
+
             for cnpj in found_cnpjs:
-                # Consulta os dados do CNPJ usando a API Invertexto
-                cnpj_data = await fetch_cnpj_data(cnpj)
-                if not cnpj_data:
-                    continue
+                score = 0
+                reasons = []
 
-                # Comparar cidade, endereço ou nome fantasia
-                cnpj_city = cnpj_data.get("endereco", {}).get("municipio", "").lower()
-                cnpj_name = cnpj_data.get("nome_fantasia", "").lower() if cnpj_data.get("nome_fantasia") else ""
-                cnpj_status = cnpj_data.get("situacao", {}).get("nome", "").lower()
+                # Analisar o contexto do resultado para dar score ao CNPJ
+                name_parts = name.lower().split()
 
-                # Validação com os critérios informados
-                if (city.lower() == cnpj_city and 
-                    (name.lower() in cnpj_name or cnpj_status == "ativa")):
-                    print(f"[LOG] CNPJ encontrado para a empresa {name}: {cnpj}")
-                    return cnpj  # Retorna o CNPJ da empresa
+                # Nome da empresa aparece no título/snippet?
+                for part in name_parts:
+                    if len(part) > 3:  # Ignorar palavras muito curtas
+                        if part in title:
+                            score += 3
+                            reasons.append(f"nome '{part}' no título")
+                        if part in snippet:
+                            score += 2
+                            reasons.append(f"nome '{part}' no snippet")
+
+                # Cidade aparece no resultado?
+                if city.lower() in title + snippet:
+                    score += 5
+                    reasons.append(f"cidade '{city}' encontrada")
+
+                # Site confiável de CNPJ?
+                if 'cnpj.biz' in link or 'econodata.com.br' in link:
+                    score += 3
+                    reasons.append("fonte confiável de CNPJ")
+
+                # Tipo de estabelecimento correto?
+                if 'restaurante' in title + snippet or 'bar' in title + snippet or 'lanchonete' in title + snippet:
+                    score += 2
+                    reasons.append("tipo de estabelecimento compatível")
+
+                # CNPJ aparece no título (mais confiável)?
+                if cnpj in ' '.join(cnpj_in_title):
+                    score += 2
+                    reasons.append("CNPJ no título")
+
+                if score > 0:
+                    cnpj_candidates.append({
+                        'cnpj': cnpj,
+                        'score': score,
+                        'title': result.get("title", ""),
+                        'snippet': result.get("snippet", ""),
+                        'link': result.get("link", ""),
+                        'reasons': reasons
+                    })
+                    print(f"[LOG] CNPJ candidato: {cnpj} (score: {score})")
+                    print(f"[LOG]   Razões: {', '.join(reasons)}")
+
+            # Adicionar info para retorno
+            serper_info.append({
+                "title": result.get("title", ""),
+                "link": result.get("link", ""),
+                "snippet": result.get("snippet", ""),
+                "found_cnpjs": found_cnpjs
+            })
+
+        # Ordenar candidatos por score
+        cnpj_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+        # Pegar o melhor candidato (maior score)
+        best_cnpj = None
+        cnpj_list = []
+
+        if cnpj_candidates:
+            best_candidate = cnpj_candidates[0]
+
+            # Só consultar API se o score for alto o suficiente (indica boa chance de ser correto)
+            if best_candidate['score'] >= 5:
+                print(f"[LOG] Melhor CNPJ identificado: {best_candidate['cnpj']} (score: {best_candidate['score']})")
+                print(f"[LOG] Consultando dados completos do CNPJ...")
+
+                # Agora sim consulta a API para obter dados completos
+                cnpj_data = await fetch_cnpj_data(best_candidate['cnpj'])
+
+                if cnpj_data:
+                    # Validação final com os dados da API
+                    cnpj_city = cnpj_data.get("endereco", {}).get("municipio", "").lower()
+                    cnpj_status = cnpj_data.get("situacao", {}).get("nome", "").lower()
+
+                    if cnpj_status == "ativa":
+                        print(f"[LOG] CNPJ {best_candidate['cnpj']} confirmado!")
+                        print(f"[LOG]   Razão Social: {cnpj_data.get('razao_social', 'N/A')}")
+                        print(f"[LOG]   Nome Fantasia: {cnpj_data.get('nome_fantasia', 'N/A')}")
+                        print(f"[LOG]   Cidade: {cnpj_city}")
+                        print(f"[LOG]   Status: {cnpj_status}")
+                        cnpj_list.append(best_candidate['cnpj'])
+                    else:
+                        print(f"[LOG] CNPJ {best_candidate['cnpj']} está inativo, ignorando...")
+            else:
+                print(f"[LOG] Score muito baixo ({best_candidate['score']}), CNPJ incerto, não consultando API")
             
         
 
@@ -384,11 +468,13 @@ async def handle_lead_data(lead_data):
     """
     name = lead_data.get('Name')
     city = lead_data.get('City')
+    google_id = lead_data.get('GoogleId')  # Recebe o GoogleId
+
     if not name or not city:
         print(f"[LOG] Nome ou cidade inválidos: Nome={name}, Cidade={city}")
         return
 
-    print(f"[LOG] Iniciando processamento do lead: Nome={name}, Cidade={city}")
+    print(f"[LOG] Iniciando processamento do lead: Nome={name}, Cidade={city}, GoogleId={google_id}")
 
     try:
 
@@ -408,12 +494,13 @@ async def handle_lead_data(lead_data):
 
 
         for cnpj in cnpjs_normalized:
-            cnpj_data = await fetch_cnpj_data(cnpj, delay=1.2)  
+            cnpj_data = await fetch_cnpj_data(cnpj, delay=1.2)
             if cnpj_data:
                 cnpj_data_list.append(cnpj_data)
 
 
         combined_data = {
+            "google_id": google_id,  # Inclui o google_id nos dados
             "serper_info": serper_result,
             "cnpj_data": cnpj_data_list
         }

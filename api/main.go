@@ -347,7 +347,13 @@ func SaveLeadToRedis(googleId string, leadId uuid.UUID) error {
 }
 
 func sendConfirmationToScrapper(googleId string) error {
-	log.Printf("Iniciando envio de confirmação para o scrapper com Google ID: %s", googleId)
+	log.Printf("Iniciando envio de dados para o scrapper com Google ID: %s", googleId)
+
+	// Buscar o lead do banco de dados usando o google_id
+	lead, err := db.GetLeadByGoogleId(googleId)
+	if err != nil {
+		return fmt.Errorf("Erro ao buscar lead com Google ID %s: %v", googleId, err)
+	}
 
 	conn, err := connectToRabbitMQ()
 	if err != nil {
@@ -361,9 +367,15 @@ func sendConfirmationToScrapper(googleId string) error {
 	}
 	defer ch.Close()
 
-	message := map[string]string{
-		"googleId": googleId,
-		"status":   "ok",
+	// Enviar dados completos para o scrapper
+	message := map[string]interface{}{
+		"GoogleId": googleId,
+		"Name":     lead.BusinessName,
+		"City":     lead.City,
+		"State":    lead.State,
+		"Address":  lead.Address,
+		"Phone":    lead.Phone,
+		"Website":  lead.Website,
 	}
 	body, err := json.Marshal(message)
 	if err != nil {
@@ -385,7 +397,7 @@ func sendConfirmationToScrapper(googleId string) error {
 		return fmt.Errorf("Falha ao publicar mensagem no RabbitMQ: %v", err)
 	}
 
-	log.Printf("Confirmação enviada para o scrapper: %v", message)
+	log.Printf("Dados enviados para o scrapper: %v", message)
 	return nil
 }
 
@@ -450,7 +462,7 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 	go func() {
 		for d := range msgs {
 
-			log.Printf("Mensagem recebida do RabbitMQ pelo consumeCompaniesFromRabbitMQ: %s", string(d.Body))
+			log.Printf("Mensagem recebida do scrapper via companies_exchange: %s", string(d.Body))
 
 			var combinedData map[string]interface{}
 
@@ -461,85 +473,57 @@ func consumeCompaniesFromRabbitMQ(ch *amqp.Channel) {
 				continue
 			}
 
-			companiesInfo, ok := combinedData["companies_info"].([]interface{})
+			// Buscar o google_id dos dados
+			googleId, ok := combinedData["google_id"].(string)
 			if !ok {
-				log.Printf("companies_info não encontrado na mensagem: %v", combinedData)
+				log.Printf("google_id não encontrado na mensagem: %v", combinedData)
 				d.Nack(false, true)
 				continue
 			}
 
-			var processingError error
-
-			for _, companyInfo := range companiesInfo {
-				companyMap, ok := companyInfo.(map[string]interface{})
-				if !ok {
-					log.Printf("Erro ao converter companyInfo para map: %v", companyInfo)
-					processingError = fmt.Errorf("erro ao converter companyInfo")
-					break
-				}
-				log.Printf("companyMap aqui: %v", companyMap)
-
-				leadID, err := saveCompanyData(companyMap)
-				if err != nil {
-					log.Printf("Erro ao atualizar lead saveCompanyData: %v", err)
-
-					if isTemporaryError(err) {
-						d.Nack(false, true)
-						log.Printf("Erro temporário. Mensagem reenfileirada para nova tentativa.")
-					} else {
-						d.Nack(false, false)
-						log.Printf("Erro irreversível. Mensagem descartada.")
-					}
-					processingError = err
-					break
-				}
-
-				cnpjDetails, ok := combinedData["cnpj_details"].([]interface{})
-				if !ok {
-					log.Printf("cnpj_details não encontrado ou não é uma lista válida: %v", combinedData)
-					processingError = fmt.Errorf("cnpj_details não encontrado")
-					break
-				}
-
-				for _, cnpjDetail := range cnpjDetails {
-					cnpjMap, ok := cnpjDetail.(map[string]interface{})
-					if !ok {
-						log.Printf("Erro ao converter cnpjDetail para map: %v", cnpjDetail)
-						continue
-					}
-
-					cnpjDetailJSON, err := json.MarshalIndent(cnpjMap, "", "  ")
-					if err != nil {
-						log.Printf("Erro ao serializar detalhes do CNPJ para JSON: %v", err)
-						continue
-					}
-
-					log.Printf("Detalhes do CNPJ:\n%s", string(cnpjDetailJSON))
-
-					err = updateLeadWithCNPJDetailsByID(leadID, cnpjMap)
-					if err != nil {
-						log.Printf("Erro ao atualizar o lead: %v", err)
-						if isTemporaryError(err) {
-							processingError = err
-							log.Printf("Erro temporário. Reenfileirando mensagem.")
-							break
-						} else {
-							processingError = err
-							log.Printf("Erro irreversível. Descartando mensagem.")
-							break
-						}
-					}
-				}
-			}
-
-			if processingError != nil {
+			// Buscar o lead_id usando o google_id do Redis
+			leadIdStr, err := redisClient.Get(ctx, fmt.Sprintf("google_lead:%s", googleId)).Result()
+			if err != nil {
+				log.Printf("Erro ao buscar lead_id no Redis para google_id %s: %v", googleId, err)
+				d.Nack(false, true)
 				continue
 			}
 
-			err = d.Ack(false)
+			leadId, err := uuid.Parse(leadIdStr)
 			if err != nil {
-				log.Printf("Erro ao enviar ACK: %v", err)
+				log.Printf("Erro ao fazer parse do lead_id %s: %v", leadIdStr, err)
+				d.Nack(false, false)
+				continue
 			}
+
+			// Processar dados do CNPJ
+			cnpjDataList, ok := combinedData["cnpj_data"].([]interface{})
+			if !ok || len(cnpjDataList) == 0 {
+				log.Printf("cnpj_data não encontrado ou vazio: %v", combinedData)
+				d.Nack(false, false)
+				continue
+			}
+
+			// Usar o primeiro CNPJ válido encontrado
+			for _, cnpjData := range cnpjDataList {
+				cnpjMap, ok := cnpjData.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				// Atualizar o lead com os dados do CNPJ
+				err = updateLeadWithCNPJData(leadId, cnpjMap)
+				if err != nil {
+					log.Printf("Erro ao atualizar lead %s com dados do CNPJ: %v", leadId, err)
+					continue
+				}
+
+				log.Printf("Lead %s atualizado com sucesso com dados do CNPJ", leadId)
+				break // Usar apenas o primeiro CNPJ válido
+			}
+
+			d.Ack(false) // Confirmar processamento
+			log.Printf("Dados do CNPJ processados com sucesso para google_id: %s, lead_id: %s", googleId, leadId)
 		}
 	}()
 
@@ -701,6 +685,18 @@ func saveLeadToDatabase(data map[string]interface{}) error {
 	}
 
 	log.Printf("Lead salvo no Redis: Google ID %s -> Lead ID %s", lead.GoogleId, lead.ID)
+
+	// Enviar confirmação para o scrapper processar o lead
+	log.Printf("Enviando lead para o scrapper: Google ID %s", lead.GoogleId)
+	err = sendConfirmationToScrapper(lead.GoogleId)
+	if err != nil {
+		log.Printf("Erro ao enviar lead para o scrapper: %v", err)
+		// Não retornamos erro aqui para não falhar o salvamento do lead
+		// O scrapper pode processar posteriormente via retry ou outra lógica
+	} else {
+		log.Printf("Lead enviado com sucesso para o scrapper")
+	}
+
 	return nil
 }
 
@@ -762,6 +758,185 @@ func saveCompanyData(data map[string]interface{}) (uuid.UUID, error) {
 		}
 	}
 	return lead.ID, nil
+}
+
+func updateLeadWithCNPJData(leadID uuid.UUID, cnpjData map[string]interface{}) error {
+	lead, err := db.GetLeadByID(leadID)
+	if err != nil {
+		return fmt.Errorf("Erro ao buscar Lead com ID %s: %v", leadID, err)
+	}
+
+	if lead == nil {
+		return fmt.Errorf("Lead não encontrado com ID: %s", leadID)
+	}
+
+	// Atualizar CNPJ
+	if cnpj, ok := cnpjData["cnpj"].(string); ok && cnpj != "" {
+		// Formatar CNPJ se necessário
+		if len(cnpj) == 14 {
+			cnpj = fmt.Sprintf("%s.%s.%s/%s-%s", cnpj[:2], cnpj[2:5], cnpj[5:8], cnpj[8:12], cnpj[12:])
+		}
+		lead.CompanyRegistrationID = cnpj
+		log.Printf("CNPJ atualizado: %s", cnpj)
+	}
+
+	// Atualizar Razão Social
+	if razaoSocial, ok := cnpjData["razao_social"].(string); ok && razaoSocial != "" {
+		lead.RegisteredName = razaoSocial
+		log.Printf("Razão Social atualizada: %s", razaoSocial)
+	}
+
+	// Atualizar Nome Fantasia
+	if nomeFantasia, ok := cnpjData["nome_fantasia"].(string); ok && nomeFantasia != "" {
+		if lead.BusinessName == "" || len(nomeFantasia) > len(lead.BusinessName) {
+			lead.BusinessName = nomeFantasia
+		}
+	}
+
+	// Atualizar Email
+	if email, ok := cnpjData["email"].(string); ok && email != "" {
+		lead.Email = email
+		log.Printf("Email atualizado: %s", email)
+	}
+
+	// Atualizar Telefones
+	if telefone1, ok := cnpjData["telefone1"].(string); ok && telefone1 != "" {
+		if lead.Phone == "" {
+			lead.Phone = telefone1
+		}
+	}
+
+	// Atualizar Capital Social
+	if capitalStr, ok := cnpjData["capital_social"].(string); ok && capitalStr != "" {
+		if capital, err := strconv.ParseFloat(capitalStr, 64); err == nil {
+			lead.EquityCapital = capital
+			log.Printf("Capital Social atualizado: %.2f", capital)
+		}
+	}
+
+	// Atualizar Data de Fundação
+	if dataInicio, ok := cnpjData["data_inicio"].(string); ok && dataInicio != "" {
+		// Converter formato DD/MM/YYYY para YYYY-MM-DD
+		parts := strings.Split(dataInicio, "/")
+		if len(parts) == 3 {
+			formattedDate := fmt.Sprintf("%s-%s-%s", parts[2], parts[1], parts[0])
+			if t, err := time.Parse("2006-01-02", formattedDate); err == nil {
+				lead.FoundationDate = sql.NullTime{Time: t, Valid: true}
+				log.Printf("Data de fundação atualizada: %s", formattedDate)
+			}
+		}
+	}
+
+	// Atualizar Porte da Empresa
+	if porte, ok := cnpjData["porte"].(string); ok && porte != "" {
+		lead.CompanySize = porte
+		log.Printf("Porte atualizado: %s", porte)
+	}
+
+	// Atualizar Situação
+	if situacao, ok := cnpjData["situacao"].(map[string]interface{}); ok {
+		if nome, ok := situacao["nome"].(string); ok && nome != "" {
+			lead.BusinessStatus = nome
+			log.Printf("Situação atualizada: %s", nome)
+		}
+	}
+
+	// Atualizar Sócios (owners)
+	if socios, ok := cnpjData["socios"].([]interface{}); ok && len(socios) > 0 {
+		var owners []string
+		for _, socio := range socios {
+			if socioMap, ok := socio.(map[string]interface{}); ok {
+				if nome, ok := socioMap["nome"].(string); ok && nome != "" {
+					if qualificacao, ok := socioMap["qualificacao"].(string); ok && qualificacao != "" {
+						owners = append(owners, fmt.Sprintf("%s (%s)", nome, qualificacao))
+					} else {
+						owners = append(owners, nome)
+					}
+				}
+			}
+		}
+		if len(owners) > 0 {
+			lead.Owner = strings.Join(owners, "; ")
+			log.Printf("Sócios atualizados: %s", lead.Owner)
+		}
+	}
+
+	// Atualizar Atividade Principal
+	if atividadePrincipal, ok := cnpjData["atividade_principal"].(map[string]interface{}); ok {
+		if descricao, ok := atividadePrincipal["text"].(string); ok && descricao != "" {
+			lead.PrimaryActivity = descricao
+			log.Printf("Atividade principal atualizada: %s", descricao)
+		}
+	}
+
+	// Atualizar Atividades Secundárias
+	if atividadesSecundarias, ok := cnpjData["atividades_secundarias"].([]interface{}); ok {
+		var activities []string
+		for _, atividade := range atividadesSecundarias {
+			if atividadeMap, ok := atividade.(map[string]interface{}); ok {
+				if descricao, ok := atividadeMap["text"].(string); ok && descricao != "" {
+					activities = append(activities, descricao)
+				}
+			}
+		}
+		if len(activities) > 0 {
+			lead.SecondaryActivities = strings.Join(activities, "; ")
+			log.Printf("Atividades secundárias atualizadas: %d atividades", len(activities))
+		}
+	}
+
+	// Atualizar Endereço se mais completo
+	if endereco, ok := cnpjData["endereco"].(map[string]interface{}); ok {
+		var addressParts []string
+		if logradouro, ok := endereco["logradouro"].(string); ok && logradouro != "" {
+			if numero, ok := endereco["numero"].(string); ok && numero != "" {
+				addressParts = append(addressParts, fmt.Sprintf("%s, %s", logradouro, numero))
+			} else {
+				addressParts = append(addressParts, logradouro)
+			}
+		}
+		if bairro, ok := endereco["bairro"].(string); ok && bairro != "" {
+			addressParts = append(addressParts, bairro)
+		}
+		if len(addressParts) > 0 {
+			newAddress := strings.Join(addressParts, " - ")
+			if len(newAddress) > len(lead.Address) {
+				lead.Address = newAddress
+			}
+		}
+
+		// Atualizar CEP se disponível
+		if cep, ok := endereco["cep"].(string); ok && cep != "" {
+			lead.ZIPCode = cep
+		}
+	}
+
+	// Atualizar descrição com informações adicionais
+	var additionalInfo []string
+	if natureza, ok := cnpjData["natureza_juridica"].(string); ok && natureza != "" {
+		additionalInfo = append(additionalInfo, fmt.Sprintf("Natureza Jurídica: %s", natureza))
+	}
+	if tipo, ok := cnpjData["tipo"].(string); ok && tipo != "" {
+		additionalInfo = append(additionalInfo, fmt.Sprintf("Tipo: %s", tipo))
+	}
+
+	if len(additionalInfo) > 0 {
+		newInfo := strings.Join(additionalInfo, "\n")
+		if lead.Description == "" {
+			lead.Description = newInfo
+		} else {
+			lead.Description = fmt.Sprintf("%s\n%s", lead.Description, newInfo)
+		}
+	}
+
+	// Salvar o lead atualizado
+	err = db.UpdateLead(lead)
+	if err != nil {
+		return fmt.Errorf("Erro ao atualizar lead no banco de dados: %v", err)
+	}
+
+	log.Printf("Lead %s atualizado com sucesso com dados do CNPJ", leadID)
+	return nil
 }
 
 func updateLeadWithCNPJDetailsByID(leadID uuid.UUID, cnpjDetails map[string]interface{}) error {

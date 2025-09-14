@@ -12,6 +12,7 @@ def main():
             user="postgres",
             password="postgres",
             host="db"
+            
         )
         print("Connected to the database successfully.")
     except Exception as e:
